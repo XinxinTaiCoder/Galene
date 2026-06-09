@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { detectCrisis } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Coffee, Moon, Cookie, X, Lightbulb, Check, Globe
@@ -338,6 +339,38 @@ function Reaction({ icon: Icon, label, count, active, onClick }) {
   );
 }
 
+function CrisisModal({ lang, onClose }) {
+  const isZh = lang === "zh";
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, zIndex: 100 }}>
+      <div style={{ background: C.card, borderRadius: 22, padding: 24,
+        border: `1px solid ${C.terracottaSoft}`,
+        boxShadow: "0 8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 14 }}>
+          <Heart size={20} color={C.terracotta} fill={C.terracotta} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 14, fontFamily: "'Noto Serif SC',serif",
+            color: C.plum, fontWeight: 700 }}>
+            {isZh ? "你不是一个人" : "You are not alone"}
+          </div>
+        </div>
+        <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.8, marginBottom: 20 }}>
+          {isZh
+            ? "看到你现在可能很难受。同伴的陪伴很珍贵，但它无法替代专业帮助。北京心理危机研究与干预中心热线：010-82951332，24 小时有人接听。你不是一个人。"
+            : "It sounds like you're going through something heavy right now. Peer support matters, but it can't replace professional help. If you're in the US, you can call or text 988 (Suicide & Crisis Lifeline), 24/7. You are not alone."}
+        </div>
+        <button onClick={onClose}
+          style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "none",
+            background: C.terracotta, color: "#fff", fontSize: 14.5, cursor: "pointer",
+            fontFamily: "'Noto Serif SC',serif" }}>
+          {isZh ? "我知道了" : "Got it"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CrisisBanner({ t, onClose }) {
   return (
     <div style={{ margin: "0 16px 14px", padding: 14, borderRadius: 16,
@@ -454,7 +487,7 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
 }
 
 // ── Feed ────────────────────────────────────────────────────
-function Feed({ lang, userId, profile }) {
+function Feed({ lang, userId, profile, onCrisisDetected }) {
   const t = STR[lang];
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -561,6 +594,7 @@ function Feed({ lang, userId, profile }) {
       if (error) throw error;
       setPosts((prev) => [data, ...prev]);
       setHugCounts((prev) => ({ ...prev, [data.id]: 0 }));
+      if (detectCrisis(data.body)) onCrisisDetected();
       setComposeText(""); setComposeEmoji(""); setComposeTag("");
     } catch (err) {
       console.error("Publish error:", err?.message, err?.code, err?.details, err?.hint, err);
@@ -642,7 +676,7 @@ function Rooms({ lang, onEnter }) {
 }
 
 // ── Chat ────────────────────────────────────────────────────
-function ChatRoom({ lang, room, profile, userId, onBack }) {
+function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected }) {
   const t = STR[lang];
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -718,6 +752,7 @@ function ChatRoom({ lang, room, profile, userId, onBack }) {
       if (error) throw error;
       seenIds.current.add(data.id);
       setMsgs((prev) => [...prev, data]);
+      if (detectCrisis(body)) onCrisisDetected();
     } catch (err) {
       console.error("Send error:", err?.message, err?.code, err?.details, err?.hint, err);
       setText(body);
@@ -886,6 +921,7 @@ export default function NuanyuApp() {
   const [authLoading, setAuthLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [showCrisisModal, setShowCrisisModal] = useState(false);
 
   useEffect(() => {
     const el = document.createElement("style");
@@ -976,19 +1012,27 @@ export default function NuanyuApp() {
   }
 
   return shell(
-    !profile ? (
-      <Onboarding lang={lang} setLang={setLang} onDone={handleOnboardingDone} saving={saving} />
-    ) : room ? (
-      <ChatRoom lang={lang} room={room} profile={profile} userId={userId} onBack={() => setRoom(null)} />
-    ) : (
-      <>
-        <div style={{ height: "100%", overflowY: "auto" }}>
-          {tab === "feed" && <Feed lang={lang} userId={userId} profile={profile} />}
-          {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
-          {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} />}
-        </div>
-        <TabBar lang={lang} tab={tab} setTab={setTab} />
-      </>
-    )
+    <>
+      {!profile ? (
+        <Onboarding lang={lang} setLang={setLang} onDone={handleOnboardingDone} saving={saving} />
+      ) : room ? (
+        <ChatRoom lang={lang} room={room} profile={profile} userId={userId}
+          onBack={() => setRoom(null)}
+          onCrisisDetected={() => setShowCrisisModal(true)} />
+      ) : (
+        <>
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            {tab === "feed" && <Feed lang={lang} userId={userId} profile={profile}
+              onCrisisDetected={() => setShowCrisisModal(true)} />}
+            {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
+            {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} />}
+          </div>
+          <TabBar lang={lang} tab={tab} setTab={setTab} />
+        </>
+      )}
+      {showCrisisModal && (
+        <CrisisModal lang={lang} onClose={() => setShowCrisisModal(false)} />
+      )}
+    </>
   );
 }
