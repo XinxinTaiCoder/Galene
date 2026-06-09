@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { detectCrisis } from "@/lib/safety";
+import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Coffee, Moon, Cookie, X, Lightbulb, Check, Globe
@@ -16,6 +16,12 @@ const C = {
 };
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500&display=swap');`;
+
+const PIN_KEY = "galene_pin";
+const LANG_KEY = "galene_lang";
+const getStoredPin = () => localStorage.getItem(PIN_KEY);
+const setStoredPin = (p) => localStorage.setItem(PIN_KEY, p);
+const clearStoredPin = () => localStorage.removeItem(PIN_KEY);
 
 // ── i18n ────────────────────────────────────────────────────
 const STR = {
@@ -43,6 +49,16 @@ const STR = {
     meGuard: "社群守护设置", meGuardSub: "屏蔽词、举报记录、拉黑名单",
     tabFeed: "分享", tabRooms: "倾诉", tabMe: "我的",
     selected: "已选",
+    pinStep: "设置密码锁（可选）", pinStepSub: "只保存在你的设备上，App 重启时需要输入",
+    pinPrompt: "设置 4 位数字密码", pinConfirm: "再次确认密码",
+    pinConfirmSub: "请再输入一次以确认",
+    pinMismatch: "两次输入不一致，请重试", pinWrong: "密码错误，请再试一次",
+    pinOn: "开启密码锁", pinOnSub: "为 App 添加本地保护",
+    pinChange: "修改密码", pinChangeSub: "重新设置你的 4 位密码",
+    pinOff: "关闭密码锁", pinOffSub: "移除本地密码保护",
+    pinSetupTitle: "设置新密码",
+    guideTitle: "💛 社群公约 · 点开看看我们珍视什么",
+    guideClose: "收起",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -68,6 +84,16 @@ const STR = {
     meGuard: "Community-care settings", meGuardSub: "Filtered words, reports, block list",
     tabFeed: "Share", tabRooms: "Confide", tabMe: "Me",
     selected: "selected",
+    pinStep: "Set a passcode (optional)", pinStepSub: "Stored only on this device — required each time the app opens",
+    pinPrompt: "Choose a 4-digit passcode", pinConfirm: "Confirm your passcode",
+    pinConfirmSub: "Enter it once more to confirm",
+    pinMismatch: "Passcodes don't match — please try again", pinWrong: "Wrong passcode, please try again",
+    pinOn: "Turn on passcode lock", pinOnSub: "Add local protection to the app",
+    pinChange: "Change passcode", pinChangeSub: "Set a new 4-digit passcode",
+    pinOff: "Turn off passcode lock", pinOffSub: "Remove local passcode protection",
+    pinSetupTitle: "Set new passcode",
+    guideTitle: "💛 Community Values · See what we care about",
+    guideClose: "Collapse",
   },
 };
 
@@ -189,15 +215,179 @@ function Avatar({ emoji, color = C.peach, size = 40 }) {
   );
 }
 
+// ── PIN components ──────────────────────────────────────────
+function PinDots({ filled }) {
+  return (
+    <div style={{ display: "flex", gap: 18, justifyContent: "center" }}>
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} style={{ width: 16, height: 16, borderRadius: "50%",
+          border: `2px solid ${C.terracotta}`,
+          background: i < filled ? C.terracotta : "transparent", transition: "background .15s" }} />
+      ))}
+    </div>
+  );
+}
+
+const KEYPAD_ROWS = [["1","2","3"],["4","5","6"],["7","8","9"],["","0","⌫"]];
+
+function PinKeypad({ onPress }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, width: 240 }}>
+      {KEYPAD_ROWS.flat().map((k, i) =>
+        k === "" ? <div key={i} /> : (
+          <button key={i} onClick={() => onPress(k)}
+            style={{ height: 60, borderRadius: 16, border: `1px solid ${C.line}`,
+              background: k === "⌫" ? "transparent" : C.card,
+              fontSize: k === "⌫" ? 20 : 24, color: C.plum, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(74,47,61,.07)" }}>
+            {k}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function LockScreen({ lang, setLang, onUnlock }) {
+  const t = STR[lang];
+  const [entry, setEntry] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleKey = (key) => {
+    if (key === "⌫") { setEntry((e) => e.slice(0, -1)); setError(false); return; }
+    const next = entry + key;
+    if (next.length > 4) return;
+    setEntry(next);
+    if (next.length === 4) {
+      if (next === getStoredPin()) { onUnlock(); }
+      else { setError(true); setEntry(""); }
+    }
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center",
+      background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)`,
+      position: "relative" }}>
+      <div style={{ position: "absolute", top: 14, right: 16 }}>
+        <LangToggle lang={lang} setLang={setLang} />
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>🔐</div>
+        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 26, color: C.plum,
+          fontWeight: 700 }}>{t.appName}</div>
+        <div style={{ color: C.plumSoft, fontSize: 13.5, marginTop: 8, marginBottom: 36,
+          textAlign: "center" }}>{t.lockSub}</div>
+        <PinDots filled={entry.length} />
+        {error && <div style={{ color: C.terracotta, fontSize: 13, marginTop: 14 }}>{t.pinWrong}</div>}
+        <div style={{ marginTop: error ? 14 : 28 }}><PinKeypad onPress={handleKey} /></div>
+        <div style={{ color: C.plumSoft, fontSize: 12, marginTop: 32,
+          textAlign: "center" }}>{t.lockFoot}</div>
+      </div>
+    </div>
+  );
+}
+
+function GuidelinesBanner({ lang }) {
+  const t = STR[lang];
+  const g = GUIDELINES[lang];
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ margin: "0 16px 14px", borderRadius: 16, border: `1px solid ${C.terracottaSoft}`,
+      background: C.cardWarm, overflow: "hidden" }}>
+      <button onClick={() => setOpen((v) => !v)}
+        style={{ width: "100%", padding: "12px 16px", background: "none", border: "none",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+          textAlign: "left" }}>
+        <span style={{ fontSize: 13.5, color: C.terracotta, fontWeight: 500 }}>{t.guideTitle}</span>
+        <span style={{ fontSize: 16, color: C.terracotta, display: "inline-block",
+          transition: "transform .2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 16px 14px" }}>
+          {g.items.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ width: 5, height: 5, borderRadius: 999, background: C.terracotta,
+                flexShrink: 0, marginTop: 8 }} />
+              <div style={{ fontSize: 13, color: C.plum, lineHeight: 1.75 }}>{item}</div>
+            </div>
+          ))}
+          <button onClick={() => setOpen(false)}
+            style={{ marginTop: 4, fontSize: 12.5, color: C.plumSoft, background: "none",
+              border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+            {t.guideClose}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PinSetupModal({ lang, onDone, onClose }) {
+  const t = STR[lang];
+  const [stage, setStage] = useState("prompt");
+  const [first, setFirst] = useState("");
+  const [entry, setEntry] = useState("");
+  const [error, setError] = useState("");
+
+  const handleKey = (key) => {
+    if (key === "⌫") { setEntry((e) => e.slice(0, -1)); setError(""); return; }
+    const next = entry + key;
+    if (next.length > 4) return;
+    setEntry(next);
+    if (next.length === 4) {
+      if (stage === "prompt") {
+        setFirst(next); setEntry(""); setStage("confirm"); setError("");
+      } else {
+        if (next === first) { onDone(next); }
+        else { setError(t.pinMismatch); setEntry(""); setStage("prompt"); setFirst(""); }
+      }
+    }
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }}>
+      <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", padding: "28px 24px 40px",
+        width: "100%", boxShadow: "0 -8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 18, color: C.plum,
+            fontWeight: 700 }}>{t.pinSetupTitle}</div>
+          <button onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft }}>
+            <X size={20} />
+          </button>
+        </div>
+        <div style={{ fontSize: 14, color: C.plumSoft, marginBottom: 28, textAlign: "center" }}>
+          {stage === "prompt" ? t.pinPrompt : t.pinConfirmSub}
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <PinDots filled={entry.length} />
+        </div>
+        {error && <div style={{ color: C.terracotta, fontSize: 13, textAlign: "center",
+          marginBottom: 12 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: error ? 8 : 20 }}>
+          <PinKeypad onPress={handleKey} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Onboarding ──────────────────────────────────────────────
 function Onboarding({ lang, setLang, onDone, saving }) {
   const t = STR[lang];
-  const [step, setStep] = useState(0); // 0 welcome,1 avatar,2 interests,3 strengths
+  const [step, setStep] = useState(0); // 0 welcome,1 avatar,2 interests,3 strengths,4 pin
   const [cat, setCat] = useState("flower");
   const [avatar, setAvatar] = useState(null);
   const [nickname, setNickname] = useState("");
   const [interests, setInterests] = useState([]);
   const [strengths, setStrengths] = useState([]);
+  const [pinStage, setPinStage] = useState("prompt");
+  const [pinFirst, setPinFirst] = useState("");
+  const [pinEntry, setPinEntry] = useState("");
+  const [pinError, setPinError] = useState("");
 
   const toggle = (arr, set, id) =>
     set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
@@ -207,7 +397,28 @@ function Onboarding({ lang, setLang, onDone, saving }) {
     { id: "plant", label: t.catPlant }, { id: "cartoon", label: t.catCartoon },
   ];
 
-  const finish = () => onDone({ avatar: avatar || "🌷", nickname: nickname.trim(), interests, strengths });
+  const finish = (pin) => {
+    if (pin) setStoredPin(pin);
+    onDone({ avatar: avatar || "🌷", nickname: nickname.trim(), interests, strengths });
+  };
+
+  const handlePinKey = (key) => {
+    if (key === "⌫") { setPinEntry((e) => e.slice(0, -1)); setPinError(""); return; }
+    const next = pinEntry + key;
+    if (next.length > 4) return;
+    setPinEntry(next);
+    if (next.length === 4) {
+      if (pinStage === "prompt") {
+        setPinFirst(next); setPinEntry(""); setPinStage("confirm"); setPinError("");
+      } else {
+        if (next === pinFirst) { finish(next); }
+        else {
+          setPinError(t.pinMismatch);
+          setPinEntry(""); setPinStage("prompt"); setPinFirst("");
+        }
+      }
+    }
+  };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column",
@@ -234,7 +445,7 @@ function Onboarding({ lang, setLang, onDone, saving }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* progress */}
           <div style={{ display: "flex", gap: 6, padding: "12px 24px 0" }}>
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} style={{ flex: 1, height: 4, borderRadius: 999,
                 background: s <= step ? C.terracotta : C.line }} />
             ))}
@@ -303,21 +514,53 @@ function Onboarding({ lang, setLang, onDone, saving }) {
                 </div>
               </>
             )}
+
+            {step === 4 && (
+              <>
+                <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 21, color: C.plum,
+                  fontWeight: 700 }}>{t.pinStep}</div>
+                <div style={{ color: C.plumSoft, fontSize: 13, marginTop: 6,
+                  marginBottom: 28 }}>{t.pinStepSub}</div>
+                <div style={{ fontSize: 14, color: C.plum, textAlign: "center",
+                  marginBottom: 24 }}>
+                  {pinStage === "prompt" ? t.pinPrompt : t.pinConfirmSub}
+                </div>
+                <PinDots filled={pinEntry.length} />
+                {pinError && (
+                  <div style={{ color: C.terracotta, fontSize: 13, textAlign: "center",
+                    marginTop: 14 }}>{pinError}</div>
+                )}
+                <div style={{ display: "flex", justifyContent: "center",
+                  marginTop: pinError ? 14 : 28 }}>
+                  <PinKeypad onPress={handlePinKey} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* footer nav */}
           <div style={{ display: "flex", gap: 12, padding: "12px 24px 22px", borderTop: `1px solid ${C.line}` }}>
-            <button onClick={() => setStep(step - 1)}
+            <button onClick={() => { setStep(step - 1); setPinStage("prompt"); setPinFirst(""); setPinEntry(""); setPinError(""); }}
               style={{ padding: "13px 20px", borderRadius: 14, cursor: "pointer", fontSize: 14,
                 border: `1px solid ${C.line}`, background: "transparent", color: C.plumSoft }}>{t.back}</button>
-            <button
-              onClick={() => (step < 3 ? setStep(step + 1) : finish())}
-              disabled={(step === 1 && !avatar) || saving}
-              style={{ flex: 1, padding: 13, borderRadius: 14, border: "none", fontSize: 15, cursor: "pointer",
-                background: (step === 1 && !avatar) || saving ? C.terracottaSoft : C.terracotta,
-                color: "#fff", fontFamily: "'Noto Serif SC',serif" }}>
-              {step < 3 ? t.next : saving ? (lang === "zh" ? "保存中…" : "Saving…") : t.done}
-            </button>
+            {step < 4 ? (
+              <button
+                onClick={() => step < 3 ? setStep(step + 1) : setStep(4)}
+                disabled={(step === 1 && !avatar) || saving}
+                style={{ flex: 1, padding: 13, borderRadius: 14, border: "none", fontSize: 15, cursor: "pointer",
+                  background: (step === 1 && !avatar) || saving ? C.terracottaSoft : C.terracotta,
+                  color: "#fff", fontFamily: "'Noto Serif SC',serif" }}>
+                {step < 3 ? t.next : saving ? (lang === "zh" ? "保存中…" : "Saving…") : t.next}
+              </button>
+            ) : (
+              <button onClick={() => finish(null)} disabled={saving}
+                style={{ flex: 1, padding: 13, borderRadius: 14, border: "none", fontSize: 15,
+                  cursor: saving ? "default" : "pointer",
+                  background: saving ? C.terracottaSoft : C.terracotta,
+                  color: "#fff", fontFamily: "'Noto Serif SC',serif" }}>
+                {saving ? (lang === "zh" ? "保存中…" : "Saving…") : t.skip}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -365,6 +608,38 @@ function CrisisModal({ lang, onClose }) {
             background: C.terracotta, color: "#fff", fontSize: 14.5, cursor: "pointer",
             fontFamily: "'Noto Serif SC',serif" }}>
           {isZh ? "我知道了" : "Got it"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AbuseModal({ lang, onClose }) {
+  const isZh = lang === "zh";
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, zIndex: 100 }}>
+      <div style={{ background: C.card, borderRadius: 22, padding: 24,
+        border: `1px solid ${C.terracottaSoft}`,
+        boxShadow: "0 8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 14 }}>
+          <Shield size={20} color={C.terracotta} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 14, fontFamily: "'Noto Serif SC',serif",
+            color: C.plum, fontWeight: 700 }}>
+            {isZh ? "换个说法？" : "Want to rephrase?"}
+          </div>
+        </div>
+        <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.8, marginBottom: 20 }}>
+          {isZh
+            ? "这条里好像有些带攻击性的词。要不要换个说法再发？我们希望这里让每个人都觉得安全、被善待。"
+            : "This message seems to contain some hurtful words. Want to rephrase it before posting? We're trying to keep this a space where everyone feels safe and cared for."}
+        </div>
+        <button onClick={onClose}
+          style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "none",
+            background: C.terracotta, color: "#fff", fontSize: 14.5, cursor: "pointer",
+            fontFamily: "'Noto Serif SC',serif" }}>
+          {isZh ? "好的，我改改" : "Got it, let me rephrase"}
         </button>
       </div>
     </div>
@@ -487,7 +762,7 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
 }
 
 // ── Feed ────────────────────────────────────────────────────
-function Feed({ lang, userId, profile, onCrisisDetected }) {
+function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const t = STR[lang];
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -584,6 +859,7 @@ function Feed({ lang, userId, profile, onCrisisDetected }) {
 
   const publish = async () => {
     if (!composeText.trim() || !userId) return;
+    if (filterAbuse(composeText.trim())) { onAbuseDetected(); return; }
     setPublishing(true);
     try {
       const { data, error } = await supabase
@@ -610,6 +886,7 @@ function Feed({ lang, userId, profile, onCrisisDetected }) {
         <div style={{ color: C.plumSoft, fontSize: 12.5, marginTop: 2 }}>{t.feedSub}</div>
       </div>
       {showCrisis && <CrisisBanner t={t} onClose={() => setShowCrisis(false)} />}
+      <GuidelinesBanner lang={lang} />
       <ComposeBox
         lang={lang} profile={profile}
         text={composeText} onTextChange={setComposeText}
@@ -676,7 +953,7 @@ function Rooms({ lang, onEnter }) {
 }
 
 // ── Chat ────────────────────────────────────────────────────
-function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected }) {
+function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbuseDetected }) {
   const t = STR[lang];
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -741,6 +1018,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected }) {
   const send = async () => {
     if (!text.trim() || !userId) return;
     const body = text.trim();
+    if (filterAbuse(body)) { onAbuseDetected(); return; }
     setText("");
     setSending(true);
     try {
@@ -829,8 +1107,14 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected }) {
 // ── Me ──────────────────────────────────────────────────────
 function Me({ lang, setLang, profile }) {
   const t = STR[lang];
+  const [pinExists, setPinExists] = useState(false);
+  const [showPinSetup, setShowPinSetup] = useState(false);
+
+  useEffect(() => { setPinExists(!!getStoredPin()); }, []);
+
   const myInterests = INTERESTS.filter((i) => profile.interests.includes(i.id));
   const myStrengths = STRENGTHS.filter((s) => profile.strengths.includes(s.id));
+
   const TagRow = ({ title, items }) => (
     <div style={{ margin: "0 16px 12px", background: C.card, borderRadius: 16, padding: 16, border: `1px solid ${C.line}` }}>
       <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 10 }}>{title}</div>
@@ -842,10 +1126,20 @@ function Me({ lang, setLang, profile }) {
       </div>
     </div>
   );
-  const rows = [
-    { icon: Lock, label: t.meLock, sub: t.meLockSub },
-    { icon: Shield, label: t.meGuard, sub: t.meGuardSub },
-  ];
+
+  const SettingRow = ({ icon: Icon, label, sub, onClick, danger }) => (
+    <div onClick={onClick}
+      style={{ margin: "0 16px 12px", background: C.card, borderRadius: 16, padding: 16,
+        border: `1px solid ${danger ? C.terracottaSoft : C.line}`,
+        display: "flex", alignItems: "center", gap: 14, cursor: onClick ? "pointer" : "default" }}>
+      <Icon size={20} color={danger ? C.terracotta : C.terracotta} />
+      <div>
+        <div style={{ fontSize: 14.5, color: danger ? C.terracotta : C.plum, fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>{sub}</div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ paddingBottom: 90 }}>
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
@@ -855,7 +1149,8 @@ function Me({ lang, setLang, profile }) {
         <div style={{ width: 76, height: 76, borderRadius: 999, margin: "0 auto 12px",
           background: `linear-gradient(135deg, ${C.terracottaSoft}, ${C.peach})`,
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>{profile.avatar}</div>
-        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 19, color: C.plum, fontWeight: 700 }}>{profile.nickname || t.meName}</div>
+        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 19, color: C.plum,
+          fontWeight: 700 }}>{profile.nickname || t.meName}</div>
         <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 4 }}>{t.meSub}</div>
       </div>
       <TagRow title={t.meInterests} items={myInterests} />
@@ -869,19 +1164,25 @@ function Me({ lang, setLang, profile }) {
           <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>{t.meHugsSub}</div>
         </div>
       </div>
-      {rows.map((r, i) => {
-        const Icon = r.icon;
-        return (
-          <div key={i} style={{ margin: "0 16px 12px", background: C.card, borderRadius: 16, padding: 16,
-            border: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: 14 }}>
-            <Icon size={20} color={C.terracotta} />
-            <div>
-              <div style={{ fontSize: 14.5, color: C.plum, fontWeight: 500 }}>{r.label}</div>
-              <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>{r.sub}</div>
-            </div>
-          </div>
-        );
-      })}
+
+      {pinExists ? (
+        <>
+          <SettingRow icon={Lock} label={t.pinChange} sub={t.pinChangeSub}
+            onClick={() => setShowPinSetup(true)} />
+          <SettingRow icon={Shield} label={t.pinOff} sub={t.pinOffSub} danger
+            onClick={() => { clearStoredPin(); setPinExists(false); }} />
+        </>
+      ) : (
+        <SettingRow icon={Lock} label={t.pinOn} sub={t.pinOnSub}
+          onClick={() => setShowPinSetup(true)} />
+      )}
+      <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub} />
+
+      {showPinSetup && (
+        <PinSetupModal lang={lang}
+          onDone={(pin) => { setStoredPin(pin); setPinExists(true); setShowPinSetup(false); }}
+          onClose={() => setShowPinSetup(false)} />
+      )}
     </div>
   );
 }
@@ -912,9 +1213,38 @@ function TabBar({ lang, tab, setTab }) {
   );
 }
 
+// ── Guidelines ───────────────────────────────────────────────
+const GUIDELINES = {
+  zh: {
+    title: "欢迎来到 Galene · 宁静之海",
+    items: [
+      "这是一个女性本位的空间，为彼此的情绪、成长和日常而存在。",
+      "我们鼓励：真诚倾诉、温柔回应、互相支持。",
+      "我们不欢迎：评判、说教、推销、骚扰、攻击。",
+      "请保护你和她人的匿名：不打听、不外传。",
+      "同伴的陪伴很珍贵，但不能替代专业帮助；如果你正处在危机中，请寻求专业支持。",
+    ],
+    btn: "我愿意，进入",
+    saving: "记录中…",
+  },
+  en: {
+    title: "Welcome to Galene · A Tranquil Sea",
+    items: [
+      "This is a women-centered space, built for our emotions, growth, and everyday moments.",
+      "We encourage: honest sharing, gentle responses, and mutual support.",
+      "We ask you not to: judge, lecture, promote, harass, or attack.",
+      "Please protect your anonymity and others': don't pry, don't share outside.",
+      "Peer companionship is precious, but it can't replace professional help. If you're in crisis, please reach out to a professional.",
+    ],
+    btn: "I'm in",
+    saving: "Saving…",
+  },
+};
+
 // ── Root ────────────────────────────────────────────────────
 export default function NuanyuApp() {
-  const [lang, setLang] = useState("zh");
+  const [langState, setLangState] = useState("en");
+  const [locked, setLocked] = useState(false);
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState("feed");
   const [room, setRoom] = useState(null);
@@ -922,6 +1252,10 @@ export default function NuanyuApp() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState(null);
   const [showCrisisModal, setShowCrisisModal] = useState(false);
+  const [showAbuseModal, setShowAbuseModal] = useState(false);
+
+  const lang = langState;
+  const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
 
   useEffect(() => {
     const el = document.createElement("style");
@@ -931,6 +1265,10 @@ export default function NuanyuApp() {
   }, []);
 
   useEffect(() => {
+    const storedLang = localStorage.getItem(LANG_KEY);
+    if (storedLang) setLangState(storedLang);
+    setLocked(!!localStorage.getItem(PIN_KEY));
+
     const init = async () => {
       try {
         let currentUser = null;
@@ -1004,31 +1342,38 @@ export default function NuanyuApp() {
         background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)` }}>
         <div style={{ fontSize: 52 }}>🌿</div>
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 22, color: C.plum, fontWeight: 700 }}>
-          宁静之海
+          {lang === "zh" ? "宁静之海" : "Galene"}
         </div>
-        <div style={{ fontSize: 13, color: C.plumSoft }}>载入中…</div>
+        <div style={{ fontSize: 13, color: C.plumSoft }}>{lang === "zh" ? "载入中…" : "Loading…"}</div>
       </div>
     );
   }
 
   return shell(
     <>
-      {!profile ? (
+      {locked ? (
+        <LockScreen lang={lang} setLang={setLang} onUnlock={() => setLocked(false)} />
+      ) : !profile ? (
         <Onboarding lang={lang} setLang={setLang} onDone={handleOnboardingDone} saving={saving} />
       ) : room ? (
         <ChatRoom lang={lang} room={room} profile={profile} userId={userId}
           onBack={() => setRoom(null)}
-          onCrisisDetected={() => setShowCrisisModal(true)} />
+          onCrisisDetected={() => setShowCrisisModal(true)}
+          onAbuseDetected={() => setShowAbuseModal(true)} />
       ) : (
         <>
           <div style={{ height: "100%", overflowY: "auto" }}>
             {tab === "feed" && <Feed lang={lang} userId={userId} profile={profile}
-              onCrisisDetected={() => setShowCrisisModal(true)} />}
+              onCrisisDetected={() => setShowCrisisModal(true)}
+              onAbuseDetected={() => setShowAbuseModal(true)} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
             {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} />}
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} />
         </>
+      )}
+      {showAbuseModal && (
+        <AbuseModal lang={lang} onClose={() => setShowAbuseModal(false)} />
       )}
       {showCrisisModal && (
         <CrisisModal lang={lang} onClose={() => setShowCrisisModal(false)} />
