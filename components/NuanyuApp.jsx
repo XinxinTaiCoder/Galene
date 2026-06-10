@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
-  Send, ChevronLeft, Sun, Moon, Soup, X, Lightbulb, Check, Globe
+  Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -102,11 +102,26 @@ const STR = {
 
 // ── Data ────────────────────────────────────────────────────
 const AVATARS = {
-  flower: ["🌷", "🌸", "🌻", "🌺", "🌼", "🪷"],
-  animal: ["🐱", "🐰", "🦊", "🐻", "🐼", "🦉"],
-  plant: ["🌵", "🪴", "🌿", "🍀", "🌱", "🎋"],
-  cartoon: ["🧸", "🦄", "👾", "🐙", "🍄", "⭐"],
+  flower:  ["🌷","🌸","🌻","🌺","🌼","🪷","💐","🌹","🪻","🌞","🌝","🏵️"],
+  animal:  ["🐱","🐰","🦊","🐻","🐼","🦉","🐸","🐧","🦋","🐝","🐨","🐙","🦜","🐿️","🐬","🦈"],
+  plant:   ["🌵","🪴","🌿","🍀","🌱","🎋","🍃","🌾","🎍","🌲","🌳","🍄"],
+  cartoon: ["🧸","🦄","👾","⭐","🎪","🎈","🎡","🎢","🪆","🪅","🎭","🎠"],
+  people:  ["🧚","🧜","🧝","🧙","👻","🤖","👽","🎅","🧞","🧛","🫧","🪄"],
+  food:    ["🍡","🍭","🧁","🎂","🍰","🍩","🍪","🍫","🍬","🍦","🍧","🥐"],
+  weather: ["☀️","🌈","⛅","🌤️","🌦️","❄️","🌊","🌙","✨","💫","🌪️","🌸"],
+  heart:   ["❤️","🧡","💛","💚","💙","💜","🤍","💗","💖","💝","💘","🫶"],
 };
+
+const AVATAR_CATS = [
+  { id: "flower",  zh: "花花",     en: "Flowers"    },
+  { id: "animal",  zh: "动物",     en: "Animals"    },
+  { id: "plant",   zh: "植物",     en: "Plants"     },
+  { id: "cartoon", zh: "卡通",     en: "Cartoon"    },
+  { id: "people",  zh: "人物形象", en: "Characters" },
+  { id: "food",    zh: "美食甜点", en: "Food"       },
+  { id: "weather", zh: "天气",     en: "Weather"    },
+  { id: "heart",   zh: "爱心",     en: "Hearts"     },
+];
 
 const INTERESTS = [
   { id: "read", zh: "读书", en: "Reading" }, { id: "film", zh: "电影", en: "Film" },
@@ -407,11 +422,6 @@ function Onboarding({ lang, setLang, onDone, saving }) {
   const toggle = (arr, set, id) =>
     set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
-  const cats = [
-    { id: "flower", label: t.catFlower }, { id: "animal", label: t.catAnimal },
-    { id: "plant", label: t.catPlant }, { id: "cartoon", label: t.catCartoon },
-  ];
-
   const finish = (pin) => {
     if (pin) setStoredPin(pin);
     onDone({ avatar: avatar || "🌷", nickname: nickname.trim(), interests, strengths });
@@ -471,19 +481,20 @@ function Onboarding({ lang, setLang, onDone, saving }) {
               <>
                 <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 21, color: C.plum, fontWeight: 700 }}>{t.stepAvatar}</div>
                 <div style={{ color: C.plumSoft, fontSize: 13, marginTop: 6, marginBottom: 18 }}>{t.stepAvatarSub}</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-                  {cats.map((c) => (
+                <div style={{ display: "flex", gap: 7, overflowX: "auto", marginBottom: 16,
+                  paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+                  {AVATAR_CATS.map((c) => (
                     <button key={c.id} onClick={() => setCat(c.id)}
-                      style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", fontSize: 13,
-                        border: `1px solid ${cat === c.id ? C.terracotta : C.line}`,
+                      style={{ padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontSize: 12.5,
+                        flexShrink: 0, border: `1px solid ${cat === c.id ? C.terracotta : C.line}`,
                         background: cat === c.id ? C.terracotta : C.card,
-                        color: cat === c.id ? "#fff" : C.plumSoft }}>{c.label}</button>
+                        color: cat === c.id ? "#fff" : C.plumSoft }}>{c[lang]}</button>
                   ))}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
                   {AVATARS[cat].map((e) => (
                     <button key={e} onClick={() => setAvatar(e)}
-                      style={{ aspectRatio: "1", borderRadius: 20, cursor: "pointer", fontSize: 40,
+                      style={{ aspectRatio: "1", borderRadius: 16, cursor: "pointer", fontSize: 34,
                         border: `2px solid ${avatar === e ? C.terracotta : C.line}`,
                         background: avatar === e ? C.peach : C.card,
                         display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>{e}</button>
@@ -683,6 +694,16 @@ function CrisisBanner({ t, onClose }) {
 
 // ── Compose Box ─────────────────────────────────────────────
 const COMPOSE_EMOJIS = ["🍜", "🫠", "🌿", "☀️", "🌙", "✨", "🥣", "🌸"];
+
+const CHAT_EMOJIS = [
+  "😊","😄","😂","🥹","😭","😍","🥰","😘","😅","🥺","😩","😤",
+  "😴","🤔","🫠","😌","🥲","😔","🤗","🫶",
+  "❤️","🧡","💛","💚","💙","💜","🤍","💗","💖","💝",
+  "🌸","🌷","🌻","🌺","🌿","🍀","☀️","🌈","🌙","✨","💫","⭐",
+  "🐱","🐰","🦊","🐻","🐼","🦉","🐸","🦋",
+  "🍜","🧁","🍰","🍩","🍪","🍫","☕","🍵",
+  "🎉","🎊","🎈","🌟","🫧","👏","🙌","💪",
+];
 const COMPOSE_TAGS = {
   zh: ["今日趣事", "美食", "想倾诉", "可爱meme", "职场", "心情"],
   en: ["Today's fun", "Food", "Need to talk", "Cute meme", "Career", "Mood"],
@@ -974,8 +995,23 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
+  const inputRef = useRef(null);
+
+  const insertEmoji = (e) => {
+    const input = inputRef.current;
+    if (!input) { setText((t) => t + e); return; }
+    const s = input.selectionStart ?? text.length;
+    const end = input.selectionEnd ?? text.length;
+    const next = text.slice(0, s) + e + text.slice(end);
+    setText(next);
+    setTimeout(() => {
+      input.setSelectionRange(s + e.length, s + e.length);
+      input.focus();
+    }, 0);
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -1102,14 +1138,35 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         <div ref={bottomRef} />
       </div>
 
-      <div style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 10 }}>
-        <input value={text} onChange={(e) => setText(e.target.value)}
+      {showEmojiPicker && (
+        <div style={{ borderTop: `1px solid ${C.line}`, background: C.card,
+          maxHeight: 188, overflowY: "auto", padding: "8px 10px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+            {CHAT_EMOJIS.map((e, i) => (
+              <button key={i} onClick={() => insertEmoji(e)}
+                style={{ width: 36, height: 36, border: "none", background: "transparent",
+                  borderRadius: 8, fontSize: 22, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, alignItems: "center" }}>
+        <button onClick={() => setShowEmojiPicker((v) => !v)}
+          style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${showEmojiPicker ? C.terracotta : C.line}`,
+            background: showEmojiPicker ? C.peach : "transparent", flexShrink: 0,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Smile size={18} color={showEmojiPicker ? C.terracotta : C.plumSoft} />
+        </button>
+        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
           placeholder={t.chatPlaceholder}
           style={{ flex: 1, border: `1px solid ${C.line}`, borderRadius: 999, padding: "11px 16px",
             fontSize: 14, outline: "none", background: C.bg, color: C.plum }} />
         <button onClick={send} disabled={sending || !text.trim()}
-          style={{ width: 44, height: 44, borderRadius: 999, border: "none",
+          style={{ width: 44, height: 44, borderRadius: 999, border: "none", flexShrink: 0,
             background: sending || !text.trim() ? C.terracottaSoft : C.terracotta,
             color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Send size={18} />
