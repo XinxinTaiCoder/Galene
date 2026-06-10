@@ -75,6 +75,8 @@ const STR = {
     comingSoon: "即将推出",
     bannedMsg: "你的账号因违反社群公约已被限制，无法发布内容",
     sendHug: "送出抱抱 🤗", hugSent: "已送出 🤗",
+    commentPlaceholder: "回应一下…",
+    noComments: "还没有回应，来说第一句吧 🌿",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -123,6 +125,8 @@ const STR = {
     comingSoon: "Coming soon",
     bannedMsg: "Your account has been restricted for violating community guidelines",
     sendHug: "Send a hug 🤗", hugSent: "Sent 🤗",
+    commentPlaceholder: "Reply…",
+    noComments: "No replies yet — be the first 🌿",
   },
 };
 
@@ -1005,6 +1009,8 @@ const CHAT_EMOJIS = [
   "🍜","🧁","🍰","🍩","🍪","🍫","☕","🍵",
   "🎉","🎊","🎈","🌟","🫧","👏","🙌","💪",
 ];
+const REACTION_EMOJIS = ["🤗", "👍", "❤️", "😂", "😢", "✨"];
+
 const COMPOSE_TAGS = {
   zh: ["今日趣事", "美食", "想倾诉", "可爱meme", "职场", "心情"],
   en: ["Today's fun", "Food", "Need to talk", "Cute meme", "Career", "Mood"],
@@ -1056,8 +1062,135 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
   );
 }
 
+// ── Comments ──────────────────────────────────────────────────
+function CommentItem({ comment, replies, lang, onReply, depth }) {
+  const av = comment.profiles?.avatar || "🌿";
+  const name = comment.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous");
+  return (
+    <div style={{ marginLeft: depth * 18, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+        <Avatar emoji={av} color={C.peach} size={22} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: C.plumSoft, marginBottom: 1 }}>{name}</div>
+          <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>{comment.body}</div>
+          <button onClick={() => onReply(comment)}
+            style={{ background: "none", border: "none", cursor: "pointer",
+              color: C.sage, fontSize: 11, padding: "2px 0", marginTop: 1 }}>
+            {lang === "zh" ? "回复" : "Reply"}
+          </button>
+        </div>
+      </div>
+      {replies.map((r) => (
+        <CommentItem key={r.id} comment={r} replies={[]} lang={lang} onReply={onReply} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
+
+function CommentsSection({ postId, userId, lang, t }) {
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [sending, setSending] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("comments")
+          .select("*, profiles!author_id(nickname, avatar)")
+          .eq("post_id", postId)
+          .eq("hidden", false)
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        setComments(data || []);
+      } catch (err) {
+        console.error("Comments load error:", err?.message, err?.code, err?.details, err?.hint, err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [postId]);
+
+  const submit = async () => {
+    if (!text.trim() || !userId) return;
+    setSending(true);
+    try {
+      const row = { post_id: postId, author_id: userId, body: text.trim(), hidden: false };
+      if (replyTo) row.parent_id = replyTo.id;
+      const { data, error } = await supabase
+        .from("comments")
+        .insert(row)
+        .select("*, profiles!author_id(nickname, avatar)")
+        .single();
+      if (error) throw error;
+      setComments((prev) => [...prev, data]);
+      setText(""); setReplyTo(null);
+    } catch (err) {
+      console.error("Comment submit error:", err?.message, err?.code, err?.details, err?.hint, err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const topLevel = comments.filter((c) => !c.parent_id);
+  const repliesFor = (parentId) => comments.filter((c) => c.parent_id === parentId);
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 4 }}>
+      {loading ? (
+        <div style={{ padding: "6px 0", color: C.plumSoft, fontSize: 12, textAlign: "center" }}>
+          {lang === "zh" ? "载入中…" : "Loading…"}
+        </div>
+      ) : topLevel.length === 0 ? (
+        <div style={{ padding: "6px 0", color: C.plumSoft, fontSize: 12, textAlign: "center" }}>
+          {t.noComments}
+        </div>
+      ) : (
+        topLevel.map((c) => (
+          <CommentItem key={c.id} comment={c} replies={repliesFor(c.id)} lang={lang}
+            onReply={(c) => { setReplyTo(c); setTimeout(() => inputRef.current?.focus(), 0); }}
+            depth={0} />
+        ))
+      )}
+      {replyTo && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 4px",
+          background: C.cardWarm, borderRadius: 8, padding: "5px 10px" }}>
+          <span style={{ fontSize: 11, color: C.plumSoft, flex: 1 }}>
+            {lang === "zh" ? "回复 " : "Replying to "}
+            <b>{replyTo.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous")}</b>
+          </span>
+          <button onClick={() => setReplyTo(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 1 }}>
+            <X size={11} />
+          </button>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 7, alignItems: "center", marginTop: 8 }}>
+        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && submit()}
+          placeholder={t.commentPlaceholder}
+          style={{ flex: 1, border: `1px solid ${C.line}`, borderRadius: 999,
+            padding: "8px 12px", fontSize: 13, outline: "none",
+            background: C.bg, color: C.plum }} />
+        <button onClick={submit} disabled={sending || !text.trim()}
+          style={{ width: 32, height: 32, borderRadius: 999, border: "none", flexShrink: 0,
+            background: sending || !text.trim() ? C.terracottaSoft : C.terracotta,
+            color: "#fff", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Send size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Post Card ────────────────────────────────────────────────
-function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick }) {
+function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId }) {
+  const [showComments, setShowComments] = useState(false);
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
@@ -1088,6 +1221,13 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <Reaction icon={Heart} label={t.hug} count={hugCount} active={hugged} onClick={onHug} />
+        <button onClick={() => setShowComments((v) => !v)}
+          style={{ border: "none", background: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 4,
+            color: showComments ? C.terracotta : C.plumSoft, fontSize: 12.5 }}>
+          <MessageCircle size={15} color={showComments ? C.terracotta : C.plumSoft} />
+          {t.reply}
+        </button>
         {reported ? (
           <span style={{ marginLeft: "auto", fontSize: 12, color: C.sage }}>
             {lang === "zh" ? "已收到，我们会查看 🌿" : "Received, we'll review 🌿"}
@@ -1100,6 +1240,9 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
           </button>
         )}
       </div>
+      {showComments && userId && (
+        <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} />
+      )}
     </div>
   );
 }
@@ -1327,6 +1470,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
             reported={reportedIds.has(p.id)}
             timeAgo={timeAgo}
             onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
+            userId={userId}
           />
         ))
       )}
@@ -1396,6 +1540,10 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [profileHugsSent, setProfileHugsSent] = useState(new Set());
   const [showReportModal, setShowReportModal] = useState(false);
   const [bannedAlert, setBannedAlert] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const [rxCounts, setRxCounts] = useState({});
+  const [myReactions, setMyReactions] = useState({});
+  const [rxPickerFor, setRxPickerFor] = useState(null);
   const blockedIdsRef = useRef(new Set());
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
@@ -1450,6 +1598,34 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     }
   };
 
+  const toggleReaction = async (msgId, emoji) => {
+    const mySet = myReactions[msgId] || new Set();
+    const hasIt = mySet.has(emoji);
+    const prevCounts = rxCounts;
+    const prevMine = myReactions;
+    const newSet = new Set(mySet);
+    if (hasIt) newSet.delete(emoji); else newSet.add(emoji);
+    setMyReactions({ ...myReactions, [msgId]: newSet });
+    const cur = rxCounts[msgId] || {};
+    setRxCounts({ ...rxCounts, [msgId]: { ...cur, [emoji]: Math.max(0, (cur[emoji] || 0) + (hasIt ? -1 : 1)) } });
+    setRxPickerFor(null);
+    try {
+      if (hasIt) {
+        const { error } = await supabase.from("message_reactions")
+          .delete().eq("message_id", msgId).eq("profile_id", userId).eq("emoji", emoji);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("message_reactions")
+          .insert({ message_id: msgId, profile_id: userId, emoji });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setMyReactions(prevMine);
+      setRxCounts(prevCounts);
+      console.error("Reaction error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
   const insertEmoji = (e) => {
     const input = inputRef.current;
     if (!input) { setText((t) => t + e); return; }
@@ -1490,6 +1666,26 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         );
         rows.forEach((m) => seenIds.current.add(m.id));
         setMsgs(rows);
+
+        if (rows.length > 0) {
+          const msgIds = rows.map((r) => r.id);
+          const { data: rxData } = await supabase
+            .from("message_reactions")
+            .select("message_id, profile_id, emoji")
+            .in("message_id", msgIds);
+          const counts = {};
+          const mine = {};
+          (rxData || []).forEach(({ message_id, profile_id, emoji }) => {
+            if (!counts[message_id]) counts[message_id] = {};
+            counts[message_id][emoji] = (counts[message_id][emoji] || 0) + 1;
+            if (profile_id === userId) {
+              if (!mine[message_id]) mine[message_id] = new Set();
+              mine[message_id].add(emoji);
+            }
+          });
+          setRxCounts(counts);
+          setMyReactions(mine);
+        }
       } catch (err) {
         console.error("Chat history error:", err?.message, err?.code, err?.details, err?.hint, err);
       } finally {
@@ -1534,12 +1730,15 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     const body = text.trim();
     if (profile.banned) { setBannedAlert(true); return; }
     if (filterAbuse(body)) { onAbuseDetected(); return; }
+    const replyToId = replyTo?.id || null;
+    const savedReplyTo = replyTo;
     setText("");
+    setReplyTo(null);
     setSending(true);
     try {
       const { data, error } = await supabase
         .from("messages")
-        .insert({ room_slug: room.slug, author_id: userId, body })
+        .insert({ room_slug: room.slug, author_id: userId, body, reply_to: replyToId })
         .select("*, profiles!author_id(nickname, avatar)")
         .single();
       if (error) throw error;
@@ -1549,6 +1748,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     } catch (err) {
       console.error("Send error:", err?.message, err?.code, err?.details, err?.hint, err);
       setText(body);
+      setReplyTo(savedReplyTo);
     } finally {
       setSending(false);
     }
@@ -1583,6 +1783,10 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
             const name = isMe
               ? (profile.nickname || (lang === "zh" ? "你" : "You"))
               : (m.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous"));
+            const quotedMsg = m.reply_to ? msgs.find((x) => x.id === m.reply_to) : null;
+            const msgRxCounts = rxCounts[m.id] || {};
+            const msgMyRx = myReactions[m.id] || new Set();
+            const hasReactions = Object.values(msgRxCounts).some((c) => c > 0);
             return (
               <div key={m.id} style={{ display: "flex", gap: 8,
                 flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
@@ -1601,7 +1805,52 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
                   <div style={{ padding: "10px 14px", borderRadius: 16,
                     borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4,
                     background: isMe ? C.terracotta : C.card, color: isMe ? "#fff" : C.plum,
-                    fontSize: 14, lineHeight: 1.6, border: isMe ? "none" : `1px solid ${C.line}` }}>{m.body}</div>
+                    fontSize: 14, lineHeight: 1.6, border: isMe ? "none" : `1px solid ${C.line}` }}>
+                    {quotedMsg && (
+                      <div style={{ borderLeft: `3px solid ${isMe ? "rgba(255,255,255,.5)" : C.terracottaSoft}`,
+                        paddingLeft: 8, marginBottom: 6, fontSize: 12,
+                        color: isMe ? "rgba(255,255,255,.8)" : C.plumSoft,
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>
+                        {quotedMsg.body}
+                      </div>
+                    )}
+                    {m.body}
+                  </div>
+                  {hasReactions && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                      {Object.entries(msgRxCounts).filter(([, c]) => c > 0).map(([emoji, count]) => (
+                        <button key={emoji} onClick={() => toggleReaction(m.id, emoji)}
+                          style={{ padding: "2px 7px", borderRadius: 999, cursor: "pointer", fontSize: 12,
+                            border: `1px solid ${msgMyRx.has(emoji) ? C.terracotta : C.line}`,
+                            background: msgMyRx.has(emoji) ? C.peach : C.card,
+                            color: msgMyRx.has(emoji) ? C.terracotta : C.plumSoft,
+                            display: "flex", alignItems: "center", gap: 3 }}>
+                          {emoji} <span>{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 2, marginTop: 3 }}>
+                    <button onClick={() => setRxPickerFor((v) => v === m.id ? null : m.id)}
+                      style={{ border: "none", background: "none", cursor: "pointer",
+                        color: C.plumSoft, padding: "1px 4px", fontSize: 13, borderRadius: 6 }}>🙂</button>
+                    <button onClick={() => { setReplyTo(m); inputRef.current?.focus(); }}
+                      style={{ border: "none", background: "none", cursor: "pointer",
+                        color: C.plumSoft, padding: "1px 4px", fontSize: 13, borderRadius: 6 }}>↩</button>
+                  </div>
+                  {rxPickerFor === m.id && (
+                    <div style={{ display: "flex", gap: 3, padding: "5px 8px", borderRadius: 12,
+                      background: C.card, border: `1px solid ${C.line}`,
+                      boxShadow: "0 2px 8px rgba(74,47,61,.10)", marginTop: 4 }}>
+                      {REACTION_EMOJIS.map((e) => (
+                        <button key={e} onClick={() => toggleReaction(m.id, e)}
+                          style={{ border: "none", cursor: "pointer", fontSize: 20, padding: 2, borderRadius: 6,
+                            background: msgMyRx.has(e) ? C.peach : "transparent" }}>
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1633,6 +1882,24 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           <button onClick={() => setBannedAlert(false)}
             style={{ background: "none", border: "none", cursor: "pointer",
               color: C.plumSoft, padding: 2, flexShrink: 0 }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+      {replyTo && (
+        <div style={{ margin: "0 12px 4px", padding: "8px 12px", borderRadius: 10,
+          background: C.cardWarm, border: `1px solid ${C.line}`,
+          display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.plumSoft, marginBottom: 1 }}>
+              {lang === "zh" ? "引用回复" : "Replying to"}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.plum, overflow: "hidden",
+              whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{replyTo.body}</div>
+          </div>
+          <button onClick={() => setReplyTo(null)}
+            style={{ background: "none", border: "none", cursor: "pointer",
+              color: C.plumSoft, padding: 2 }}>
             <X size={13} />
           </button>
         </div>
