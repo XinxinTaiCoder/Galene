@@ -815,6 +815,7 @@ function ReportUserModal({ lang, targetId, reporterId, onClose }) {
         target_type: "user",
         target_id: targetId,
         reason: note.trim() ? `${reason}: ${note.trim()}` : reason,
+        status: "open",
       });
       if (error) throw error;
       setDone(true);
@@ -1465,7 +1466,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const report = async (postId) => {
     try {
       await supabase.from("reports").insert({
-        target_type: "post", target_id: postId, reporter_id: userId, reason: null,
+        target_type: "post", target_id: postId, reporter_id: userId, reason: null, status: "open",
       });
       setReportedIds((prev) => new Set([...prev, postId]));
     } catch (err) {
