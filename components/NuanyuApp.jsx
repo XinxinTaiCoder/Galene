@@ -693,7 +693,7 @@ function CrisisBanner({ t, onClose }) {
 }
 
 // ── Compose Box ─────────────────────────────────────────────
-const COMPOSE_EMOJIS = ["🍜", "🫠", "🌿", "☀️", "🌙", "✨", "🥣", "🌸"];
+const COMPOSE_EMOJIS = ["🍜", "🫠", "🌿", "☀️", "🌙", "✨", "☕", "🌸"];
 
 const CHAT_EMOJIS = [
   "😊","😄","😂","🥹","😭","😍","🥰","😘","😅","🥺","😩","😤",
