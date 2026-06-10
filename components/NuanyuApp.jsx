@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
-  Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX
+  Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
+  Image as ImageIcon
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -77,6 +78,8 @@ const STR = {
     sendHug: "送出抱抱 🤗", hugSent: "已送出 🤗",
     commentPlaceholder: "回应一下…",
     noComments: "还没有回应，来说第一句吧 🌿",
+    addImage: "添加图片",
+    imageTooLarge: "图片太大了（上限 2MB），换一张小一点的吧 🌿",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -127,6 +130,8 @@ const STR = {
     sendHug: "Send a hug 🤗", hugSent: "Sent 🤗",
     commentPlaceholder: "Reply…",
     noComments: "No replies yet — be the first 🌿",
+    addImage: "Add photo",
+    imageTooLarge: "Image too large (max 2 MB) — please try a smaller one 🌿",
   },
 };
 
@@ -1011,12 +1016,40 @@ const CHAT_EMOJIS = [
 ];
 const REACTION_EMOJIS = ["🤗", "👍", "❤️", "😂", "😢", "✨"];
 
+async function compressImage(file) {
+  const MAX_DIM = 1200;
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        if (width >= height) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
+        else { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("toBlob failed")),
+        "image/jpeg", 0.78
+      );
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 const COMPOSE_TAGS = {
   zh: ["今日趣事", "美食", "想倾诉", "可爱meme", "职场", "心情"],
   en: ["Today's fun", "Food", "Need to talk", "Cute meme", "Career", "Mood"],
 };
 
-function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, tag, onTagChange, publishing, onPublish }) {
+function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, tag, onTagChange,
+  publishing, onPublish, imagePreview, onImageSelect, onImageClear, imageError }) {
+  const t = STR[lang];
+  const fileInputRef = useRef(null);
   return (
     <div style={{ margin: "0 16px 14px", background: C.card, borderRadius: 18,
       padding: 14, border: `1px solid ${C.line}` }}>
@@ -1033,6 +1066,21 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
             fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }}
         />
       </div>
+      {imagePreview && (
+        <div style={{ position: "relative", marginTop: 10, display: "inline-block" }}>
+          <img src={imagePreview} alt=""
+            style={{ maxHeight: 90, maxWidth: "100%", borderRadius: 10, display: "block" }} />
+          <button onClick={onImageClear}
+            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20,
+              borderRadius: 999, border: "none", background: C.terracotta, color: "#fff",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={10} />
+          </button>
+        </div>
+      )}
+      {imageError && (
+        <div style={{ fontSize: 11.5, color: C.terracotta, marginTop: 6 }}>{imageError}</div>
+      )}
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         {COMPOSE_EMOJIS.map((e) => (
           <button key={e} onClick={() => onEmojiChange(emoji === e ? "" : e)}
@@ -1050,7 +1098,14 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
               color: tag === tg ? C.terracotta : C.plumSoft }}>{tg}</button>
         ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        <button onClick={() => fileInputRef.current?.click()}
+          style={{ border: "none", background: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, padding: "6px 0",
+            color: imagePreview ? C.terracotta : C.plumSoft }}>
+          <ImageIcon size={15} />
+          {imagePreview ? (lang === "zh" ? "已选图" : "Photo added") : t.addImage}
+        </button>
         <button onClick={onPublish} disabled={!text.trim() || publishing}
           style={{ padding: "8px 18px", borderRadius: 999, border: "none", fontSize: 13, cursor: "pointer",
             background: !text.trim() || publishing ? C.terracottaSoft : C.terracotta,
@@ -1058,6 +1113,8 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
           {publishing ? (lang === "zh" ? "发布中…" : "Posting…") : (lang === "zh" ? "发布" : "Post")}
         </button>
       </div>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }}
+        onChange={(e) => { onImageSelect(e.target.files?.[0]); e.target.value = ""; }} />
     </div>
   );
 }
@@ -1090,6 +1147,7 @@ function CommentItem({ comment, replies, lang, onReply, depth }) {
 function CommentsSection({ postId, userId, lang, t }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [sending, setSending] = useState(false);
@@ -1128,6 +1186,7 @@ function CommentsSection({ postId, userId, lang, t }) {
         .single();
       if (error) throw error;
       setComments((prev) => [...prev, data]);
+      setExpanded(true);
       setText(""); setReplyTo(null);
     } catch (err) {
       console.error("Comment submit error:", err?.message, err?.code, err?.details, err?.hint, err);
@@ -1138,6 +1197,9 @@ function CommentsSection({ postId, userId, lang, t }) {
 
   const topLevel = comments.filter((c) => !c.parent_id);
   const repliesFor = (parentId) => comments.filter((c) => c.parent_id === parentId);
+  const PREVIEW = 2;
+  const hasMore = !expanded && topLevel.length > PREVIEW;
+  const visibleTop = hasMore ? topLevel.slice(-PREVIEW) : topLevel;
 
   return (
     <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10, marginTop: 4 }}>
@@ -1146,15 +1208,26 @@ function CommentsSection({ postId, userId, lang, t }) {
           {lang === "zh" ? "载入中…" : "Loading…"}
         </div>
       ) : topLevel.length === 0 ? (
-        <div style={{ padding: "6px 0", color: C.plumSoft, fontSize: 12, textAlign: "center" }}>
+        <div style={{ padding: "4px 0 2px", color: C.plumSoft, fontSize: 12 }}>
           {t.noComments}
         </div>
       ) : (
-        topLevel.map((c) => (
-          <CommentItem key={c.id} comment={c} replies={repliesFor(c.id)} lang={lang}
-            onReply={(c) => { setReplyTo(c); setTimeout(() => inputRef.current?.focus(), 0); }}
-            depth={0} />
-        ))
+        <>
+          {hasMore && (
+            <button onClick={() => setExpanded(true)}
+              style={{ border: "none", background: "none", cursor: "pointer",
+                color: C.sage, fontSize: 12, padding: "2px 0", marginBottom: 6, display: "block" }}>
+              {lang === "zh"
+                ? `查看全部 ${comments.length} 条评论`
+                : `View all ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+            </button>
+          )}
+          {visibleTop.map((c) => (
+            <CommentItem key={c.id} comment={c} replies={repliesFor(c.id)} lang={lang}
+              onReply={(c) => { setReplyTo(c); setTimeout(() => inputRef.current?.focus(), 0); }}
+              depth={0} />
+          ))}
+        </>
       )}
       {replyTo && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 4px",
@@ -1190,7 +1263,6 @@ function CommentsSection({ postId, userId, lang, t }) {
 
 // ── Post Card ────────────────────────────────────────────────
 function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId }) {
-  const [showComments, setShowComments] = useState(false);
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
@@ -1219,15 +1291,13 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
         <div style={{ marginTop: 12, height: 130, borderRadius: 14, background: C.cardWarm,
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>{post.image_emoji}</div>
       )}
+      {post.image_url && (
+        <img src={post.image_url} alt=""
+          style={{ marginTop: 12, width: "100%", borderRadius: 14,
+            objectFit: "cover", maxHeight: 280, display: "block" }} />
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <Reaction icon={Heart} label={t.hug} count={hugCount} active={hugged} onClick={onHug} />
-        <button onClick={() => setShowComments((v) => !v)}
-          style={{ border: "none", background: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 4,
-            color: showComments ? C.terracotta : C.plumSoft, fontSize: 12.5 }}>
-          <MessageCircle size={15} color={showComments ? C.terracotta : C.plumSoft} />
-          {t.reply}
-        </button>
         {reported ? (
           <span style={{ marginLeft: "auto", fontSize: 12, color: C.sage }}>
             {lang === "zh" ? "已收到，我们会查看 🌿" : "Received, we'll review 🌿"}
@@ -1240,9 +1310,7 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
           </button>
         )}
       </div>
-      {showComments && userId && (
-        <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} />
-      )}
+      {userId && <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} />}
     </div>
   );
 }
@@ -1259,6 +1327,9 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [composeText, setComposeText] = useState("");
   const [composeEmoji, setComposeEmoji] = useState("");
   const [composeTag, setComposeTag] = useState("");
+  const [composeImage, setComposeImage] = useState(null);
+  const [composeImagePreview, setComposeImagePreview] = useState(null);
+  const [imageError, setImageError] = useState(null);
   const [publishing, setPublishing] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [blockedIds, setBlockedIds] = useState(new Set());
@@ -1402,15 +1473,51 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
     }
   };
 
+  const handleImageSelect = async (file) => {
+    if (!file) return;
+    setImageError(null);
+    try {
+      const blob = await compressImage(file);
+      if (blob.size > 2 * 1024 * 1024) {
+        setImageError(t.imageTooLarge);
+        return;
+      }
+      if (composeImagePreview) URL.revokeObjectURL(composeImagePreview);
+      setComposeImage(blob);
+      setComposeImagePreview(URL.createObjectURL(blob));
+    } catch (err) {
+      console.error("Image compress error:", err?.message, err);
+      setImageError(lang === "zh" ? "图片处理失败，请重试" : "Failed to process image, please try again");
+    }
+  };
+
+  const clearImage = () => {
+    if (composeImagePreview) URL.revokeObjectURL(composeImagePreview);
+    setComposeImage(null);
+    setComposeImagePreview(null);
+    setImageError(null);
+  };
+
   const publish = async () => {
     if (!composeText.trim() || !userId) return;
     if (profile.banned) { setBannedAlert(true); return; }
     if (filterAbuse(composeText.trim())) { onAbuseDetected(); return; }
     setPublishing(true);
     try {
+      let imageUrl = null;
+      if (composeImage) {
+        const path = `${userId}/${Date.now()}.jpg`;
+        const { error: upErr } = await supabase.storage
+          .from("post-images")
+          .upload(path, composeImage, { contentType: "image/jpeg", upsert: false });
+        if (upErr) throw upErr;
+        const { data: urlData } = supabase.storage.from("post-images").getPublicUrl(path);
+        imageUrl = urlData.publicUrl;
+      }
       const { data, error } = await supabase
         .from("posts")
-        .insert({ author_id: userId, body: composeText.trim(), tag: composeTag || null, image_emoji: composeEmoji || null, hidden: false })
+        .insert({ author_id: userId, body: composeText.trim(), tag: composeTag || null,
+          image_emoji: composeEmoji || null, image_url: imageUrl, hidden: false })
         .select("*, profiles!author_id(nickname, avatar)")
         .single();
       if (error) throw error;
@@ -1418,6 +1525,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
       setHugCounts((prev) => ({ ...prev, [data.id]: 0 }));
       if (detectCrisis(data.body)) onCrisisDetected();
       setComposeText(""); setComposeEmoji(""); setComposeTag("");
+      clearImage();
     } catch (err) {
       console.error("Publish error:", err?.message, err?.code, err?.details, err?.hint, err);
     } finally {
@@ -1451,6 +1559,8 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         emoji={composeEmoji} onEmojiChange={setComposeEmoji}
         tag={composeTag} onTagChange={setComposeTag}
         publishing={publishing} onPublish={publish}
+        imagePreview={composeImagePreview} onImageSelect={handleImageSelect}
+        onImageClear={clearImage} imageError={imageError}
       />
       {loading ? (
         <div style={{ padding: "40px 16px", textAlign: "center", color: C.plumSoft, fontSize: 13 }}>
