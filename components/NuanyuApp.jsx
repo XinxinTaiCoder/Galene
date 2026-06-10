@@ -74,6 +74,7 @@ const STR = {
     blockListEmpty: "你还没有屏蔽过任何人 🌿",
     comingSoon: "即将推出",
     bannedMsg: "你的账号因违反社群公约已被限制，无法发布内容",
+    sendHug: "送出抱抱 🤗", hugSent: "已送出 🤗",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -121,6 +122,7 @@ const STR = {
     blockListEmpty: "You haven't blocked anyone yet 🌿",
     comingSoon: "Coming soon",
     bannedMsg: "Your account has been restricted for violating community guidelines",
+    sendHug: "Send a hug 🤗", hugSent: "Sent 🤗",
   },
 };
 
@@ -690,7 +692,7 @@ function AbuseModal({ lang, onClose }) {
   );
 }
 
-function ProfileCard({ profile, lang, onClose, onBlock, onReport }) {
+function ProfileCard({ profile, lang, onClose, onBlock, onReport, onHug, isHugged }) {
   const t = STR[lang];
   const interests = INTERESTS.filter((i) => (profile.interests || []).includes(i.id));
   const strengths = STRENGTHS.filter((s) => (profile.strengths || []).includes(s.id));
@@ -744,8 +746,20 @@ function ProfileCard({ profile, lang, onClose, onBlock, onReport }) {
             {lang === "zh" ? "Ta 还没有填写资料 🌿" : "No profile info yet 🌿"}
           </div>
         )}
+        {onHug && (
+          <div style={{ padding: "20px 24px 0" }}>
+            <button onClick={onHug}
+              style={{ width: "100%", padding: "12px 0", borderRadius: 14,
+                border: `1px solid ${isHugged ? C.terracotta : C.terracottaSoft}`,
+                background: isHugged ? C.peach : C.card,
+                color: isHugged ? C.terracotta : C.plumSoft,
+                fontSize: 14.5, cursor: "pointer", fontFamily: "'Noto Serif SC',serif" }}>
+              {isHugged ? t.hugSent : t.sendHug}
+            </button>
+          </div>
+        )}
         {(onBlock || onReport) && (
-          <div style={{ display: "flex", gap: 10, padding: "20px 24px 0" }}>
+          <div style={{ display: "flex", gap: 10, padding: "12px 24px 0" }}>
             {onReport && (
               <button onClick={onReport}
                 style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
@@ -1105,6 +1119,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [publishing, setPublishing] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [blockedIds, setBlockedIds] = useState(new Set());
+  const [profileHugsSent, setProfileHugsSent] = useState(new Set());
   const [showReportModal, setShowReportModal] = useState(false);
   const [bannedAlert, setBannedAlert] = useState(false);
 
@@ -1134,6 +1149,27 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
     }
   };
 
+  const toggleProfileHug = async (targetId) => {
+    const wasHugged = profileHugsSent.has(targetId);
+    const next = new Set(profileHugsSent);
+    if (wasHugged) next.delete(targetId); else next.add(targetId);
+    setProfileHugsSent(next);
+    try {
+      if (wasHugged) {
+        const { error } = await supabase.from("profile_hugs")
+          .delete().eq("from_id", userId).eq("to_id", targetId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("profile_hugs")
+          .insert({ from_id: userId, to_id: targetId });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setProfileHugsSent(profileHugsSent);
+      console.error("Profile hug error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
   useEffect(() => {
     if (!userId) return;
     const load = async () => {
@@ -1143,6 +1179,10 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
           .from("blocks").select("blocked_id").eq("blocker_id", userId);
         const blocked = new Set((blockData || []).map((b) => b.blocked_id));
         setBlockedIds(blocked);
+
+        const { data: phData } = await supabase
+          .from("profile_hugs").select("to_id").eq("from_id", userId);
+        setProfileHugsSent(new Set((phData || []).map((h) => h.to_id)));
 
         const { data: postsData, error } = await supabase
           .from("posts")
@@ -1296,6 +1336,8 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
             onClose={() => { setViewingProfile(null); setShowReportModal(false); }}
             onBlock={() => blockUser(viewingProfile.id)}
             onReport={() => setShowReportModal(true)}
+            onHug={() => toggleProfileHug(viewingProfile.id)}
+            isHugged={profileHugsSent.has(viewingProfile.id)}
           />
           {showReportModal && (
             <ReportUserModal lang={lang} targetId={viewingProfile.id} reporterId={userId}
@@ -1351,6 +1393,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [blockedIds, setBlockedIds] = useState(new Set());
+  const [profileHugsSent, setProfileHugsSent] = useState(new Set());
   const [showReportModal, setShowReportModal] = useState(false);
   const [bannedAlert, setBannedAlert] = useState(false);
   const blockedIdsRef = useRef(new Set());
@@ -1386,6 +1429,27 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     }
   };
 
+  const toggleProfileHug = async (targetId) => {
+    const wasHugged = profileHugsSent.has(targetId);
+    const next = new Set(profileHugsSent);
+    if (wasHugged) next.delete(targetId); else next.add(targetId);
+    setProfileHugsSent(next);
+    try {
+      if (wasHugged) {
+        const { error } = await supabase.from("profile_hugs")
+          .delete().eq("from_id", userId).eq("to_id", targetId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("profile_hugs")
+          .insert({ from_id: userId, to_id: targetId });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setProfileHugsSent(profileHugsSent);
+      console.error("Profile hug error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
   const insertEmoji = (e) => {
     const input = inputRef.current;
     if (!input) { setText((t) => t + e); return; }
@@ -1409,6 +1473,10 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           .from("blocks").select("blocked_id").eq("blocker_id", userId);
         const blocked = new Set((blockData || []).map((b) => b.blocked_id));
         setBlockedIds(blocked);
+
+        const { data: phData } = await supabase
+          .from("profile_hugs").select("to_id").eq("from_id", userId);
+        setProfileHugsSent(new Set((phData || []).map((h) => h.to_id)));
 
         const { data, error } = await supabase
           .from("messages")
@@ -1594,6 +1662,8 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
             onClose={() => { setViewingProfile(null); setShowReportModal(false); }}
             onBlock={() => blockUser(viewingProfile.id)}
             onReport={() => setShowReportModal(true)}
+            onHug={() => toggleProfileHug(viewingProfile.id)}
+            isHugged={profileHugsSent.has(viewingProfile.id)}
           />
           {showReportModal && (
             <ReportUserModal lang={lang} targetId={viewingProfile.id} reporterId={userId}
@@ -1720,8 +1790,34 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
+  const [totalHugs, setTotalHugs] = useState(null);
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const loadHugs = async () => {
+      try {
+        const { data: myPosts } = await supabase
+          .from("posts").select("id").eq("author_id", userId);
+        const postIds = (myPosts || []).map((p) => p.id);
+        let postHugCount = 0;
+        if (postIds.length > 0) {
+          const { count } = await supabase
+            .from("hugs").select("id", { count: "exact", head: true })
+            .in("post_id", postIds);
+          postHugCount = count || 0;
+        }
+        const { count: profileHugCount } = await supabase
+          .from("profile_hugs").select("from_id", { count: "exact", head: true })
+          .eq("to_id", userId);
+        setTotalHugs(99 + postHugCount + (profileHugCount || 0));
+      } catch (err) {
+        console.error("Hug count error:", err?.message, err?.code, err?.details, err?.hint, err);
+      }
+    };
+    loadHugs();
+  }, [userId]);
 
   const myInterests = INTERESTS.filter((i) => profile.interests.includes(i.id));
   const myStrengths = STRENGTHS.filter((s) => profile.strengths.includes(s.id));
@@ -1777,7 +1873,13 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
         <Heart size={22} color={C.terracotta} fill={C.terracotta} />
         <div>
           <div style={{ fontSize: 14.5, color: C.plum, fontWeight: 500 }}>{t.meHugs}</div>
-          <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>{t.meHugsSub}</div>
+          <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>
+            {totalHugs === null
+              ? (lang === "zh" ? "载入中…" : "Loading…")
+              : lang === "zh"
+                ? `${totalHugs} 个温柔的瞬间`
+                : `${totalHugs} gentle moment${totalHugs === 1 ? "" : "s"}`}
+          </div>
         </div>
       </div>
       <GuidelinesBanner lang={lang} permanent />
