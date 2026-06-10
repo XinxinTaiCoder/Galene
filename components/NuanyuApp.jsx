@@ -1059,7 +1059,7 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
           placeholder={lang === "zh" ? "说点什么，匿名的、温柔的…" : "Share something, anonymously and gently…"}
-          maxLength={500}
+          maxLength={1000}
           rows={2}
           style={{ flex: 1, border: "none", outline: "none", resize: "none", fontSize: 14,
             color: C.plum, background: "transparent", lineHeight: 1.6,
