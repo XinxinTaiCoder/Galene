@@ -102,25 +102,19 @@ const STR = {
 
 // ── Data ────────────────────────────────────────────────────
 const AVATARS = {
-  flower:  ["🌷","🌸","🌻","🌺","🌼","🪷","💐","🌹","🪻","🌞","🌝","🏵️"],
-  animal:  ["🐱","🐰","🦊","🐻","🐼","🦉","🐸","🐧","🦋","🐝","🐨","🐙","🦜","🐿️","🐬","🦈"],
-  plant:   ["🌵","🪴","🌿","🍀","🌱","🎋","🍃","🌾","🎍","🌲","🌳","🍄"],
-  cartoon: ["🧸","🦄","👾","⭐","🎪","🎈","🎡","🎢","🪆","🪅","🎭","🎠"],
-  people:  ["🧚","🧜","🧝","🧙","👻","🤖","👽","🎅","🧞","🧛","🫧","🪄"],
-  food:    ["🍡","🍭","🧁","🎂","🍰","🍩","🍪","🍫","🍬","🍦","🍧","🥐"],
-  weather: ["☀️","🌈","⛅","🌤️","🌦️","❄️","🌊","🌙","✨","💫","🌪️","🌸"],
-  heart:   ["❤️","🧡","💛","💚","💙","💜","🤍","💗","💖","💝","💘","🫶"],
+  people: ["👩","👩🏻","👩🏽","👩🏿","🧚‍♀️","💃","👸","🧜‍♀️","👩‍🎨","👩‍💻","👩‍🎤","👩‍🍳"],
+  heart:  ["❤️","🧡","💛","💚","💙","💜","🤍","🖤","💗","💖","💝","🫶"],
+  plant:  ["🌹","🌷","🌸","🪷","🌺","💐","🪻","🌻","🌿","🍀","🪴","🎋"],
+  animal: ["🐱","🐶","🐰","🦊","🐻","🐼","🐨","🦁","🐸","🦋","🐧","🦉"],
+  food:   ["🍜","🧁","🍰","🍩","🍪","🍫","🍡","🍭","☕","🍵","🍦","🥐"],
 };
 
 const AVATAR_CATS = [
-  { id: "flower",  zh: "花花",     en: "Flowers"    },
-  { id: "animal",  zh: "动物",     en: "Animals"    },
-  { id: "plant",   zh: "植物",     en: "Plants"     },
-  { id: "cartoon", zh: "卡通",     en: "Cartoon"    },
-  { id: "people",  zh: "人物形象", en: "Characters" },
-  { id: "food",    zh: "美食甜点", en: "Food"       },
-  { id: "weather", zh: "天气",     en: "Weather"    },
-  { id: "heart",   zh: "爱心",     en: "Hearts"     },
+  { id: "people", zh: "人物", en: "People"  },
+  { id: "heart",  zh: "爱心", en: "Hearts"  },
+  { id: "plant",  zh: "植物", en: "Plants"  },
+  { id: "animal", zh: "动物", en: "Animals" },
+  { id: "food",   zh: "美食", en: "Food"    },
 ];
 
 const INTERESTS = [
@@ -409,7 +403,7 @@ function PinSetupModal({ lang, onDone, onClose }) {
 function Onboarding({ lang, setLang, onDone, saving }) {
   const t = STR[lang];
   const [step, setStep] = useState(0); // 0 welcome,1 avatar,2 interests,3 strengths,4 pin
-  const [cat, setCat] = useState("flower");
+  const [cat, setCat] = useState("people");
   const [avatar, setAvatar] = useState(null);
   const [nickname, setNickname] = useState("");
   const [interests, setInterests] = useState([]);
@@ -424,7 +418,7 @@ function Onboarding({ lang, setLang, onDone, saving }) {
 
   const finish = (pin) => {
     if (pin) setStoredPin(pin);
-    onDone({ avatar: avatar || "🌷", nickname: nickname.trim(), interests, strengths });
+    onDone({ avatar: avatar || "👩", nickname: nickname.trim(), interests, strengths });
   };
 
   const handlePinKey = (key) => {
