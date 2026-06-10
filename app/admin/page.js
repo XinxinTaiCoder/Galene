@@ -93,6 +93,19 @@ export default function AdminPage() {
     }
   };
 
+  const unbanUser = async (targetId) => {
+    try {
+      const { error } = await supabase
+        .from("profiles").update({ banned: false }).eq("id", targetId);
+      if (error) throw error;
+      setProfiles((prev) => ({ ...prev, [targetId]: { ...prev[targetId], banned: false } }));
+      flash("✅ 已解除封禁");
+    } catch (err) {
+      console.error("Unban error:", err?.message, err?.code, err?.details, err?.hint, err);
+      flash("❌ 操作失败，请查看控制台");
+    }
+  };
+
   const ignoreReport = async (reportId) => {
     try {
       const { error } = await supabase
@@ -198,6 +211,12 @@ export default function AdminPage() {
                   <button onClick={() => banUser(r.target_id, r.id)}
                     style={S.btn("#C9755A")}>
                     封禁该用户
+                  </button>
+                )}
+                {r.target_type === "user" && targetProfile?.banned && (
+                  <button onClick={() => unbanUser(r.target_id)}
+                    style={S.btn("#7E9484")}>
+                    解除封禁
                   </button>
                 )}
                 <button onClick={() => ignoreReport(r.id)} style={S.btnGhost}>
