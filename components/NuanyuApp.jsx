@@ -62,6 +62,8 @@ const STR = {
     pinSetupTitle: "设置新密码",
     guideTitle: "💛 社群公约 · 点开看看我们珍视什么",
     guideClose: "收起",
+    editProfile: "编辑资料", save: "保存", saving: "保存中…",
+    profileInterests: "兴趣", profileStrengths: "可以提供的帮助",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -97,6 +99,8 @@ const STR = {
     pinSetupTitle: "Set new passcode",
     guideTitle: "💛 Community Values · See what we care about",
     guideClose: "Collapse",
+    editProfile: "Edit profile", save: "Save", saving: "Saving…",
+    profileInterests: "Interests", profileStrengths: "Can offer",
   },
 };
 
@@ -666,6 +670,65 @@ function AbuseModal({ lang, onClose }) {
   );
 }
 
+function ProfileCard({ profile, lang, onClose }) {
+  const t = STR[lang];
+  const interests = INTERESTS.filter((i) => (profile.interests || []).includes(i.id));
+  const strengths = STRENGTHS.filter((s) => (profile.strengths || []).includes(s.id));
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.45)",
+      display: "flex", alignItems: "flex-end", zIndex: 150 }}>
+      <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", width: "100%",
+        maxHeight: "72%", overflowY: "auto", padding: "0 0 36px",
+        boxShadow: "0 -8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 18px 0" }}>
+          <button onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft }}>
+            <X size={20} />
+          </button>
+        </div>
+        <div style={{ textAlign: "center", padding: "4px 24px 20px" }}>
+          <div style={{ width: 72, height: 72, borderRadius: 999, margin: "0 auto 12px",
+            background: `linear-gradient(135deg, ${C.terracottaSoft}, ${C.peach})`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>
+            {profile.avatar || "🌿"}
+          </div>
+          <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 18, color: C.plum,
+            fontWeight: 700 }}>
+            {profile.nickname || (lang === "zh" ? "匿名" : "anonymous")}
+          </div>
+        </div>
+        {interests.length > 0 && (
+          <div style={{ padding: "0 24px 16px" }}>
+            <div style={{ fontSize: 12, color: C.plumSoft, marginBottom: 8 }}>{t.profileInterests}</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {interests.map((i) => (
+                <span key={i.id} style={{ fontSize: 12.5, padding: "5px 11px", borderRadius: 999,
+                  background: C.peach, color: C.terracotta }}>{i[lang]}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {strengths.length > 0 && (
+          <div style={{ padding: "0 24px" }}>
+            <div style={{ fontSize: 12, color: C.plumSoft, marginBottom: 8 }}>{t.profileStrengths}</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {strengths.map((s) => (
+                <span key={s.id} style={{ fontSize: 12.5, padding: "5px 11px", borderRadius: 999,
+                  background: C.cardWarm, color: C.plumSoft }}>{s[lang]}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {interests.length === 0 && strengths.length === 0 && (
+          <div style={{ textAlign: "center", color: C.plumSoft, fontSize: 13, padding: "0 24px" }}>
+            {lang === "zh" ? "Ta 还没有填写资料 🌿" : "No profile info yet 🌿"}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CrisisBanner({ t, onClose }) {
   return (
     <div style={{ margin: "0 16px 14px", padding: 14, borderRadius: 16,
@@ -750,7 +813,7 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
 }
 
 // ── Post Card ────────────────────────────────────────────────
-function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo }) {
+function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick }) {
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
@@ -758,9 +821,15 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
     <div style={{ margin: "0 16px 14px", background: C.card, borderRadius: 18,
       padding: 16, border: `1px solid ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <Avatar emoji={av} color={C.peach} size={34} />
+        <button onClick={onProfileClick}
+          style={{ background: "none", border: "none", padding: 0,
+            cursor: onProfileClick ? "pointer" : "default", flexShrink: 0 }}>
+          <Avatar emoji={av} color={C.peach} size={34} />
+        </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13.5, color: C.plum, fontWeight: 500 }}>{name}</div>
+          <div onClick={onProfileClick}
+            style={{ fontSize: 13.5, color: C.plum, fontWeight: 500,
+              cursor: onProfileClick ? "pointer" : "default", display: "inline-block" }}>{name}</div>
           <div style={{ fontSize: 11, color: C.plumSoft }}>{timeAgo(post.created_at)} · {t.anon}</div>
         </div>
         {post.tag && (
@@ -804,6 +873,21 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [composeEmoji, setComposeEmoji] = useState("");
   const [composeTag, setComposeTag] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(null);
+
+  const fetchProfile = async (authorId) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, avatar, nickname, interests, strengths")
+        .eq("id", authorId)
+        .single();
+      if (error) throw error;
+      setViewingProfile(data);
+    } catch (err) {
+      console.error("Profile fetch error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -941,8 +1025,12 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
             onReport={() => report(p.id)}
             reported={reportedIds.has(p.id)}
             timeAgo={timeAgo}
+            onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
           />
         ))
+      )}
+      {viewingProfile && (
+        <ProfileCard profile={viewingProfile} lang={lang} onClose={() => setViewingProfile(null)} />
       )}
     </div>
   );
@@ -990,9 +1078,24 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(null);
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
   const inputRef = useRef(null);
+
+  const fetchProfile = async (authorId) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, avatar, nickname, interests, strengths")
+        .eq("id", authorId)
+        .single();
+      if (error) throw error;
+      setViewingProfile(data);
+    } catch (err) {
+      console.error("Profile fetch error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
 
   const insertEmoji = (e) => {
     const input = inputRef.current;
@@ -1116,10 +1219,18 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
             return (
               <div key={m.id} style={{ display: "flex", gap: 8,
                 flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
-                <Avatar emoji={av} color={isMe ? C.terracottaSoft : C.peach} size={28} />
+                <button onClick={() => !isMe && fetchProfile(m.author_id)}
+                  style={{ background: "none", border: "none", padding: 0, flexShrink: 0,
+                    cursor: isMe ? "default" : "pointer" }}>
+                  <Avatar emoji={av} color={isMe ? C.terracottaSoft : C.peach} size={28} />
+                </button>
                 <div style={{ display: "flex", flexDirection: "column",
                   alignItems: isMe ? "flex-end" : "flex-start", maxWidth: "75%" }}>
-                  {!isMe && <div style={{ fontSize: 11, color: C.plumSoft, marginBottom: 3, marginLeft: 4 }}>{name}</div>}
+                  {!isMe && (
+                    <div onClick={() => fetchProfile(m.author_id)}
+                      style={{ fontSize: 11, color: C.plumSoft, marginBottom: 3, marginLeft: 4,
+                        cursor: "pointer" }}>{name}</div>
+                  )}
                   <div style={{ padding: "10px 14px", borderRadius: 16,
                     borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4,
                     background: isMe ? C.terracotta : C.card, color: isMe ? "#fff" : C.plum,
@@ -1166,15 +1277,127 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           <Send size={18} />
         </button>
       </div>
+      {viewingProfile && (
+        <ProfileCard profile={viewingProfile} lang={lang} onClose={() => setViewingProfile(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── EditProfileModal ─────────────────────────────────────────
+function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
+  const t = STR[lang];
+  const [cat, setCat] = useState("people");
+  const [avatar, setAvatar] = useState(profile.avatar || "👩");
+  const [nickname, setNickname] = useState(profile.nickname || "");
+  const [interests, setInterests] = useState(profile.interests || []);
+  const [strengths, setStrengths] = useState(profile.strengths || []);
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (arr, set, id) =>
+    set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("profiles").update({
+        avatar, nickname: nickname.trim(), interests, strengths,
+      }).eq("id", userId);
+      if (error) throw error;
+      onSave({ avatar, nickname: nickname.trim(), interests, strengths });
+    } catch (err) {
+      console.error("Profile update error:", err?.message, err?.code, err?.details, err?.hint, err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+      display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
+        borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
+        <button onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 4 }}>
+          <X size={20} />
+        </button>
+        <div style={{ flex: 1, textAlign: "center", fontFamily: "'Noto Serif SC',serif",
+          fontSize: 16, color: C.plum, fontWeight: 700 }}>{t.editProfile}</div>
+        <button onClick={save} disabled={saving}
+          style={{ background: "none", border: "none", cursor: saving ? "default" : "pointer",
+            color: saving ? C.plumSoft : C.terracotta, fontSize: 15, fontWeight: 500, padding: 4 }}>
+          {saving ? t.saving : t.save}
+        </button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 40px" }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ width: 72, height: 72, borderRadius: 999, margin: "0 auto",
+            background: `linear-gradient(135deg, ${C.terracottaSoft}, ${C.peach})`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>
+            {avatar}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 7, overflowX: "auto", marginBottom: 12,
+          paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+          {AVATAR_CATS.map((c) => (
+            <button key={c.id} onClick={() => setCat(c.id)}
+              style={{ padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontSize: 12.5,
+                flexShrink: 0, border: `1px solid ${cat === c.id ? C.terracotta : C.line}`,
+                background: cat === c.id ? C.terracotta : C.card,
+                color: cat === c.id ? "#fff" : C.plumSoft }}>{c[lang]}</button>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+          {AVATARS[cat].map((e) => (
+            <button key={e} onClick={() => setAvatar(e)}
+              style={{ aspectRatio: "1", borderRadius: 16, cursor: "pointer", fontSize: 34,
+                border: `2px solid ${avatar === e ? C.terracotta : C.line}`,
+                background: avatar === e ? C.peach : C.card,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>{e}</button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.nickLabel}</div>
+          <input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={16}
+            placeholder={t.nickPlaceholder}
+            style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+              borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none",
+              background: C.card, color: C.plum }} />
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 10 }}>{t.stepInterests}</div>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+            {INTERESTS.map((it) => (
+              <Chip key={it.id} label={it[lang]} active={interests.includes(it.id)}
+                onClick={() => toggle(interests, setInterests, it.id)} />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 10 }}>{t.stepStrengths}</div>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+            {STRENGTHS.map((s) => (
+              <Chip key={s.id} label={s[lang]} active={strengths.includes(s.id)}
+                onClick={() => toggle(strengths, setStrengths, s.id)} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Me ──────────────────────────────────────────────────────
-function Me({ lang, setLang, profile }) {
+function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
   const t = STR[lang];
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
 
@@ -1218,6 +1441,11 @@ function Me({ lang, setLang, profile }) {
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 19, color: C.plum,
           fontWeight: 700 }}>{profile.nickname || t.meName}</div>
         <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 4 }}>{t.meSub}</div>
+        <button onClick={() => setShowEditProfile(true)}
+          style={{ marginTop: 10, padding: "7px 18px", borderRadius: 999, border: `1px solid ${C.terracotta}`,
+            background: "transparent", color: C.terracotta, fontSize: 13, cursor: "pointer" }}>
+          {t.editProfile}
+        </button>
       </div>
       <TagRow title={t.meInterests} items={myInterests} />
       <TagRow title={t.meStrengths} items={myStrengths} />
@@ -1249,6 +1477,11 @@ function Me({ lang, setLang, profile }) {
         <PinSetupModal lang={lang}
           onDone={(pin) => { setStoredPin(pin); setPinExists(true); setShowPinSetup(false); }}
           onClose={() => setShowPinSetup(false)} />
+      )}
+      {showEditProfile && (
+        <EditProfileModal lang={lang} profile={profile} userId={userId}
+          onSave={(updated) => { onProfileUpdate(updated); setShowEditProfile(false); }}
+          onClose={() => setShowEditProfile(false)} />
       )}
     </div>
   );
@@ -1447,7 +1680,7 @@ export default function NuanyuApp() {
               onCrisisDetected={() => setShowCrisisModal(true)}
               onAbuseDetected={() => setShowAbuseModal(true)} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
-            {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} />}
+            {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId} onProfileUpdate={(p) => setProfile(p)} />}
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} />
         </>
