@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
-  Send, ChevronLeft, Coffee, Moon, Cookie, X, Lightbulb, Check, Globe
+  Send, ChevronLeft, Sun, Moon, Soup, X, Lightbulb, Check, Globe
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -19,6 +19,9 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+
 
 const PIN_KEY = "galene_pin";
 const LANG_KEY = "galene_lang";
+const SEEN_GUIDELINES_KEY = "galene_seen_guidelines";
+const ACTIVE_TS_KEY = "galene_last_active";
+const GRACE_MS = 3 * 60 * 1000;
 const getStoredPin = () => localStorage.getItem(PIN_KEY);
 const setStoredPin = (p) => localStorage.setItem(PIN_KEY, p);
 const clearStoredPin = () => localStorage.removeItem(PIN_KEY);
@@ -157,15 +160,15 @@ const ROOMS = [
   { id: "r1", slug: "late-night", icon: Moon, accent: "#8C7480", online: 47,
     title: { zh: "深夜倾诉所", en: "Late-Night Confessions" },
     desc: { zh: "睡不着的时候，有人陪你说说话", en: "When you can't sleep, someone's here to talk" } },
-  { id: "r2", slug: "job-hunt", icon: Coffee, accent: "#C9755A", online: 31,
+  { id: "r4", slug: "sweetness", icon: Soup, accent: "#7E9484", online: 92,
+    title: { zh: "今天有点甜", en: "A Little Sweetness" },
+    desc: { zh: "只发开心的事、好吃的、可爱的", en: "Only happy things, good food, cute stuff" } },
+  { id: "r2", slug: "job-hunt", icon: Sun, accent: "#C9755A", online: 31,
     title: { zh: "求职互助角", en: "Job-Hunt Support" },
     desc: { zh: "面试、拒信、迷茫，我们都懂", en: "Interviews, rejections, doubt — we get it" } },
   { id: "r3", slug: "fun-fact", icon: Lightbulb, accent: "#D4A15A", online: 58,
     title: { zh: "Fun Fact 知识角", en: "Fun Fact Corner" },
     desc: { zh: "分享一个科学小知识，一起涨见识、慢慢成长", en: "Share a science nugget, grow and learn together" } },
-  { id: "r4", slug: "sweetness", icon: Cookie, accent: "#7E9484", online: 92,
-    title: { zh: "今天有点甜", en: "A Little Sweetness" },
-    desc: { zh: "只发开心的事、好吃的、可爱的", en: "Only happy things, good food, cute stuff" } },
 ];
 
 const ROOM_MSGS = {
@@ -289,10 +292,22 @@ function LockScreen({ lang, setLang, onUnlock }) {
   );
 }
 
-function GuidelinesBanner({ lang }) {
+function GuidelinesBanner({ lang, permanent = false }) {
   const t = STR[lang];
   const g = GUIDELINES[lang];
+  const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (permanent) { setVisible(true); return; }
+    if (!localStorage.getItem(SEEN_GUIDELINES_KEY)) {
+      localStorage.setItem(SEEN_GUIDELINES_KEY, "1");
+      setVisible(true);
+    }
+  }, [permanent]);
+
+  if (!visible) return null;
+
   return (
     <div style={{ margin: "0 16px 14px", borderRadius: 16, border: `1px solid ${C.terracottaSoft}`,
       background: C.cardWarm, overflow: "hidden" }}>
@@ -667,7 +682,7 @@ function CrisisBanner({ t, onClose }) {
 }
 
 // ── Compose Box ─────────────────────────────────────────────
-const COMPOSE_EMOJIS = ["🍡", "🫠", "🌿", "☕", "🌙", "✨", "🍵", "🌸"];
+const COMPOSE_EMOJIS = ["🍜", "🫠", "🌿", "☀️", "🌙", "✨", "🥣", "🌸"];
 const COMPOSE_TAGS = {
   zh: ["今日趣事", "美食", "想倾诉", "可爱meme", "职场", "心情"],
   en: ["Today's fun", "Food", "Need to talk", "Cute meme", "Career", "Mood"],
@@ -1164,6 +1179,7 @@ function Me({ lang, setLang, profile }) {
           <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 2 }}>{t.meHugsSub}</div>
         </div>
       </div>
+      <GuidelinesBanner lang={lang} permanent />
 
       {pinExists ? (
         <>
@@ -1265,9 +1281,22 @@ export default function NuanyuApp() {
   }, []);
 
   useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        localStorage.setItem(ACTIVE_TS_KEY, Date.now().toString());
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
     const storedLang = localStorage.getItem(LANG_KEY);
     if (storedLang) setLangState(storedLang);
-    setLocked(!!localStorage.getItem(PIN_KEY));
+    const pin = localStorage.getItem(PIN_KEY);
+    const lastActive = localStorage.getItem(ACTIVE_TS_KEY);
+    const elapsed = lastActive ? Date.now() - parseInt(lastActive, 10) : Infinity;
+    setLocked(!!pin && elapsed > GRACE_MS);
 
     const init = async () => {
       try {
