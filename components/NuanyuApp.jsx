@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
-  Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe
+  Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -64,6 +64,16 @@ const STR = {
     guideClose: "收起",
     editProfile: "编辑资料", save: "保存", saving: "保存中…",
     profileInterests: "兴趣", profileStrengths: "可以提供的帮助",
+    block: "屏蔽", unblock: "取消屏蔽", reportUser: "举报",
+    reportTitle: "举报该用户",
+    reportSubmit: "提交举报", reportDone: "感谢你的举报，我们会认真处理 💛",
+    reportReasonHarass: "骚扰", reportReasonAbuse: "攻击性言论",
+    reportReasonSpam: "垃圾推销", reportReasonOther: "其他",
+    reportNote: "补充说明（选填）",
+    guardTitle: "社群守护设置", blockListTitle: "拉黑名单",
+    blockListEmpty: "你还没有屏蔽过任何人 🌿",
+    comingSoon: "即将推出",
+    bannedMsg: "你的账号因违反社群公约已被限制，无法发布内容",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -101,6 +111,16 @@ const STR = {
     guideClose: "Collapse",
     editProfile: "Edit profile", save: "Save", saving: "Saving…",
     profileInterests: "Interests", profileStrengths: "Can offer",
+    block: "Block", unblock: "Unblock", reportUser: "Report",
+    reportTitle: "Report this user",
+    reportSubmit: "Submit report", reportDone: "Thank you — we'll review this carefully 💛",
+    reportReasonHarass: "Harassment", reportReasonAbuse: "Abusive language",
+    reportReasonSpam: "Spam", reportReasonOther: "Other",
+    reportNote: "Additional note (optional)",
+    guardTitle: "Community-care settings", blockListTitle: "Block list",
+    blockListEmpty: "You haven't blocked anyone yet 🌿",
+    comingSoon: "Coming soon",
+    bannedMsg: "Your account has been restricted for violating community guidelines",
   },
 };
 
@@ -670,7 +690,7 @@ function AbuseModal({ lang, onClose }) {
   );
 }
 
-function ProfileCard({ profile, lang, onClose }) {
+function ProfileCard({ profile, lang, onClose, onBlock, onReport }) {
   const t = STR[lang];
   const interests = INTERESTS.filter((i) => (profile.interests || []).includes(i.id));
   const strengths = STRENGTHS.filter((s) => (profile.strengths || []).includes(s.id));
@@ -724,6 +744,216 @@ function ProfileCard({ profile, lang, onClose }) {
             {lang === "zh" ? "Ta 还没有填写资料 🌿" : "No profile info yet 🌿"}
           </div>
         )}
+        {(onBlock || onReport) && (
+          <div style={{ display: "flex", gap: 10, padding: "20px 24px 0" }}>
+            {onReport && (
+              <button onClick={onReport}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 6, padding: "10px 0", borderRadius: 12, border: `1px solid ${C.line}`,
+                  background: C.card, color: C.plumSoft, fontSize: 13.5, cursor: "pointer" }}>
+                <Flag size={14} />{t.reportUser}
+              </button>
+            )}
+            {onBlock && (
+              <button onClick={onBlock}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 6, padding: "10px 0", borderRadius: 12,
+                  border: `1px solid ${C.terracottaSoft}`,
+                  background: "#FFF5F2", color: C.terracotta, fontSize: 13.5, cursor: "pointer" }}>
+                <UserX size={14} />{t.block}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReportUserModal({ lang, targetId, reporterId, onClose }) {
+  const t = STR[lang];
+  const REASONS = [
+    { id: "harass", label: t.reportReasonHarass },
+    { id: "abuse",  label: t.reportReasonAbuse },
+    { id: "spam",   label: t.reportReasonSpam },
+    { id: "other",  label: t.reportReasonOther },
+  ];
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!reason) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("reports").insert({
+        reporter_id: reporterId,
+        target_type: "user",
+        target_id: targetId,
+        reason: note.trim() ? `${reason}: ${note.trim()}` : reason,
+      });
+      if (error) throw error;
+      setDone(true);
+    } catch (err) {
+      console.error("Report user error:", err?.message, err?.code, err?.details, err?.hint, err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+      display: "flex", alignItems: "flex-end", zIndex: 200 }}>
+      <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", width: "100%",
+        maxHeight: "80%", overflowY: "auto", padding: "0 0 40px",
+        boxShadow: "0 -8px 32px rgba(74,47,61,.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", padding: "16px 18px 0" }}>
+          <button onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 2 }}>
+            <X size={20} />
+          </button>
+          <div style={{ flex: 1, textAlign: "center", fontFamily: "'Noto Serif SC',serif",
+            fontSize: 16, color: C.plum, fontWeight: 700 }}>{t.reportTitle}</div>
+          <div style={{ width: 28 }} />
+        </div>
+        {done ? (
+          <div style={{ textAlign: "center", padding: "32px 24px" }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>💛</div>
+            <div style={{ fontSize: 14.5, color: C.plum, lineHeight: 1.7 }}>{t.reportDone}</div>
+            <button onClick={onClose}
+              style={{ marginTop: 20, padding: "10px 28px", borderRadius: 999, border: "none",
+                background: C.terracotta, color: "#fff", fontSize: 14, cursor: "pointer" }}>
+              {lang === "zh" ? "关闭" : "Close"}
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: "20px 20px 0" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {REASONS.map((r) => (
+                <button key={r.id} onClick={() => setReason(r.id)}
+                  style={{ padding: "13px 16px", borderRadius: 14, textAlign: "left",
+                    border: `2px solid ${reason === r.id ? C.terracotta : C.line}`,
+                    background: reason === r.id ? C.peach : C.card,
+                    color: C.plum, fontSize: 14, cursor: "pointer" }}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder={t.reportNote} maxLength={200} rows={3}
+              style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+                borderRadius: 12, padding: "11px 14px", fontSize: 13.5, outline: "none",
+                background: C.card, color: C.plum, resize: "none", marginBottom: 16,
+                fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }} />
+            <button onClick={submit} disabled={!reason || submitting}
+              style={{ width: "100%", padding: "13px 0", borderRadius: 14, border: "none",
+                background: !reason || submitting ? C.terracottaSoft : C.terracotta,
+                color: "#fff", fontSize: 14.5, cursor: !reason || submitting ? "default" : "pointer",
+                fontFamily: "'Noto Serif SC',serif" }}>
+              {submitting ? (lang === "zh" ? "提交中…" : "Submitting…") : t.reportSubmit}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GuardSettings({ lang, userId, onClose }) {
+  const t = STR[lang];
+  const [blocks, setBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("blocks")
+          .select("blocked_id, profiles!blocked_id(avatar, nickname)")
+          .eq("blocker_id", userId);
+        if (error) throw error;
+        setBlocks(data || []);
+      } catch (err) {
+        console.error("Block list error:", err?.message, err?.code, err?.details, err?.hint, err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [userId]);
+
+  const unblock = async (blockedId) => {
+    try {
+      const { error } = await supabase.from("blocks")
+        .delete().eq("blocker_id", userId).eq("blocked_id", blockedId);
+      if (error) throw error;
+      setBlocks((prev) => prev.filter((b) => b.blocked_id !== blockedId));
+    } catch (err) {
+      console.error("Unblock error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+      display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
+        borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
+        <button onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 4 }}>
+          <X size={20} />
+        </button>
+        <div style={{ flex: 1, textAlign: "center", fontFamily: "'Noto Serif SC',serif",
+          fontSize: 16, color: C.plum, fontWeight: 700 }}>{t.guardTitle}</div>
+        <div style={{ width: 28 }} />
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px 40px" }}>
+        <div style={{ fontSize: 13, color: C.plumSoft, fontWeight: 500, marginBottom: 12 }}>
+          {t.blockListTitle}
+        </div>
+        {loading ? (
+          <div style={{ color: C.plumSoft, fontSize: 13, textAlign: "center", padding: "24px 0" }}>
+            {lang === "zh" ? "载入中…" : "Loading…"}
+          </div>
+        ) : blocks.length === 0 ? (
+          <div style={{ color: C.plumSoft, fontSize: 13, padding: "12px 0" }}>
+            {t.blockListEmpty}
+          </div>
+        ) : (
+          blocks.map((b) => (
+            <div key={b.blocked_id}
+              style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10,
+                background: C.card, borderRadius: 16, padding: "12px 14px",
+                border: `1px solid ${C.line}` }}>
+              <div style={{ fontSize: 24, flexShrink: 0, lineHeight: 1 }}>
+                {b.profiles?.avatar || "🌿"}
+              </div>
+              <div style={{ flex: 1, fontSize: 14, color: C.plum }}>
+                {b.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous")}
+              </div>
+              <button onClick={() => unblock(b.blocked_id)}
+                style={{ fontSize: 12, color: C.terracotta, background: "none",
+                  border: `1px solid ${C.terracottaSoft}`, borderRadius: 999,
+                  padding: "5px 12px", cursor: "pointer" }}>
+                {t.unblock}
+              </button>
+            </div>
+          ))
+        )}
+        <div style={{ marginTop: 28, fontSize: 13, color: C.plumSoft, fontWeight: 500, marginBottom: 10 }}>
+          {lang === "zh" ? "屏蔽词设置" : "Blocked words"}
+        </div>
+        <div style={{ background: C.card, borderRadius: 14, padding: "14px 16px",
+          border: `1px solid ${C.line}`, color: C.plumSoft, fontSize: 13 }}>
+          {t.comingSoon} ✨
+        </div>
+        <div style={{ marginTop: 20, fontSize: 13, color: C.plumSoft, fontWeight: 500, marginBottom: 10 }}>
+          {lang === "zh" ? "举报记录" : "Report history"}
+        </div>
+        <div style={{ background: C.card, borderRadius: 14, padding: "14px 16px",
+          border: `1px solid ${C.line}`, color: C.plumSoft, fontSize: 13 }}>
+          {t.comingSoon} ✨
+        </div>
       </div>
     </div>
   );
@@ -874,6 +1104,9 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [composeTag, setComposeTag] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
+  const [blockedIds, setBlockedIds] = useState(new Set());
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [bannedAlert, setBannedAlert] = useState(false);
 
   const fetchProfile = async (authorId) => {
     try {
@@ -889,6 +1122,18 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
     }
   };
 
+  const blockUser = async (targetId) => {
+    try {
+      const { error } = await supabase.from("blocks").insert({ blocker_id: userId, blocked_id: targetId });
+      if (error) throw error;
+      setBlockedIds((prev) => new Set([...prev, targetId]));
+      setPosts((prev) => prev.filter((p) => p.author_id !== targetId));
+      setViewingProfile(null);
+    } catch (err) {
+      console.error("Block error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
   useEffect(() => {
     if (!userId) return;
     const load = async () => {
@@ -897,16 +1142,19 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         const { data: blockData } = await supabase
           .from("blocks").select("blocked_id").eq("blocker_id", userId);
         const blocked = new Set((blockData || []).map((b) => b.blocked_id));
+        setBlockedIds(blocked);
 
         const { data: postsData, error } = await supabase
           .from("posts")
-          .select("*, profiles!author_id(nickname, avatar)")
+          .select("*, profiles!author_id(nickname, avatar, banned)")
           .eq("hidden", false)
           .order("created_at", { ascending: false })
           .limit(50);
         if (error) throw error;
 
-        const visible = (postsData || []).filter((p) => !blocked.has(p.author_id));
+        const visible = (postsData || []).filter(
+          (p) => !blocked.has(p.author_id) && !p.profiles?.banned
+        );
         setPosts(visible);
 
         if (visible.length > 0) {
@@ -973,6 +1221,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
 
   const publish = async () => {
     if (!composeText.trim() || !userId) return;
+    if (profile.banned) { setBannedAlert(true); return; }
     if (filterAbuse(composeText.trim())) { onAbuseDetected(); return; }
     setPublishing(true);
     try {
@@ -1001,6 +1250,18 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
       </div>
       {showCrisis && <CrisisBanner t={t} onClose={() => setShowCrisis(false)} />}
       <GuidelinesBanner lang={lang} />
+      {bannedAlert && (
+        <div style={{ margin: "0 16px 10px", padding: "11px 14px", borderRadius: 12,
+          background: "#FFF0EC", border: `1px solid ${C.terracottaSoft}`,
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12.5, color: C.terracotta, flex: 1 }}>{t.bannedMsg}</span>
+          <button onClick={() => setBannedAlert(false)}
+            style={{ background: "none", border: "none", cursor: "pointer",
+              color: C.plumSoft, padding: 2, flexShrink: 0 }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <ComposeBox
         lang={lang} profile={profile}
         text={composeText} onTextChange={setComposeText}
@@ -1030,7 +1291,17 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         ))
       )}
       {viewingProfile && (
-        <ProfileCard profile={viewingProfile} lang={lang} onClose={() => setViewingProfile(null)} />
+        <>
+          <ProfileCard profile={viewingProfile} lang={lang}
+            onClose={() => { setViewingProfile(null); setShowReportModal(false); }}
+            onBlock={() => blockUser(viewingProfile.id)}
+            onReport={() => setShowReportModal(true)}
+          />
+          {showReportModal && (
+            <ReportUserModal lang={lang} targetId={viewingProfile.id} reporterId={userId}
+              onClose={() => { setShowReportModal(false); setViewingProfile(null); }} />
+          )}
+        </>
       )}
     </div>
   );
@@ -1079,9 +1350,15 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
+  const [blockedIds, setBlockedIds] = useState(new Set());
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [bannedAlert, setBannedAlert] = useState(false);
+  const blockedIdsRef = useRef(new Set());
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
   const inputRef = useRef(null);
+
+  useEffect(() => { blockedIdsRef.current = blockedIds; }, [blockedIds]);
 
   const fetchProfile = async (authorId) => {
     try {
@@ -1094,6 +1371,18 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
       setViewingProfile(data);
     } catch (err) {
       console.error("Profile fetch error:", err?.message, err?.code, err?.details, err?.hint, err);
+    }
+  };
+
+  const blockUser = async (targetId) => {
+    try {
+      const { error } = await supabase.from("blocks").insert({ blocker_id: userId, blocked_id: targetId });
+      if (error) throw error;
+      setBlockedIds((prev) => new Set([...prev, targetId]));
+      setMsgs((prev) => prev.filter((m) => m.author_id !== targetId));
+      setViewingProfile(null);
+    } catch (err) {
+      console.error("Block error:", err?.message, err?.code, err?.details, err?.hint, err);
     }
   };
 
@@ -1116,14 +1405,21 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     const load = async () => {
       setLoading(true);
       try {
+        const { data: blockData } = await supabase
+          .from("blocks").select("blocked_id").eq("blocker_id", userId);
+        const blocked = new Set((blockData || []).map((b) => b.blocked_id));
+        setBlockedIds(blocked);
+
         const { data, error } = await supabase
           .from("messages")
-          .select("*, profiles!author_id(nickname, avatar)")
+          .select("*, profiles!author_id(nickname, avatar, banned)")
           .eq("room_slug", room.slug)
           .eq("hidden", false)
           .order("created_at", { ascending: true });
         if (error) throw error;
-        const rows = data || [];
+        const rows = (data || []).filter(
+          (m) => !blocked.has(m.author_id) && !m.profiles?.banned
+        );
         rows.forEach((m) => seenIds.current.add(m.id));
         setMsgs(rows);
       } catch (err) {
@@ -1142,13 +1438,15 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         async (payload) => {
           const id = payload.new.id;
           if (seenIds.current.has(id)) return;
+          if (blockedIdsRef.current.has(payload.new.author_id)) return;
           seenIds.current.add(id);
           try {
             const { data } = await supabase
               .from("messages")
-              .select("*, profiles!author_id(nickname, avatar)")
+              .select("*, profiles!author_id(nickname, avatar, banned)")
               .eq("id", id)
               .single();
+            if (data?.profiles?.banned) return;
             if (data) setMsgs((prev) => [...prev, data]);
           } catch {
             setMsgs((prev) => [...prev, { ...payload.new, profiles: null }]);
@@ -1166,6 +1464,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const send = async () => {
     if (!text.trim() || !userId) return;
     const body = text.trim();
+    if (profile.banned) { setBannedAlert(true); return; }
     if (filterAbuse(body)) { onAbuseDetected(); return; }
     setText("");
     setSending(true);
@@ -1258,6 +1557,18 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           </div>
         </div>
       )}
+      {bannedAlert && (
+        <div style={{ margin: "0 12px 4px", padding: "9px 12px", borderRadius: 10,
+          background: "#FFF0EC", border: `1px solid ${C.terracottaSoft}`,
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: C.terracotta, flex: 1 }}>{t.bannedMsg}</span>
+          <button onClick={() => setBannedAlert(false)}
+            style={{ background: "none", border: "none", cursor: "pointer",
+              color: C.plumSoft, padding: 2, flexShrink: 0 }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
       <div style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={() => setShowEmojiPicker((v) => !v)}
           style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${showEmojiPicker ? C.terracotta : C.line}`,
@@ -1278,7 +1589,17 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         </button>
       </div>
       {viewingProfile && (
-        <ProfileCard profile={viewingProfile} lang={lang} onClose={() => setViewingProfile(null)} />
+        <>
+          <ProfileCard profile={viewingProfile} lang={lang}
+            onClose={() => { setViewingProfile(null); setShowReportModal(false); }}
+            onBlock={() => blockUser(viewingProfile.id)}
+            onReport={() => setShowReportModal(true)}
+          />
+          {showReportModal && (
+            <ReportUserModal lang={lang} targetId={viewingProfile.id} reporterId={userId}
+              onClose={() => { setShowReportModal(false); setViewingProfile(null); }} />
+          )}
+        </>
       )}
     </div>
   );
@@ -1398,6 +1719,7 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showGuard, setShowGuard] = useState(false);
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
 
@@ -1471,7 +1793,8 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
         <SettingRow icon={Lock} label={t.pinOn} sub={t.pinOnSub}
           onClick={() => setShowPinSetup(true)} />
       )}
-      <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub} />
+      <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub}
+        onClick={() => setShowGuard(true)} />
 
       {showPinSetup && (
         <PinSetupModal lang={lang}
@@ -1482,6 +1805,9 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
         <EditProfileModal lang={lang} profile={profile} userId={userId}
           onSave={(updated) => { onProfileUpdate(updated); setShowEditProfile(false); }}
           onClose={() => setShowEditProfile(false)} />
+      )}
+      {showGuard && (
+        <GuardSettings lang={lang} userId={userId} onClose={() => setShowGuard(false)} />
       )}
     </div>
   );
@@ -1607,6 +1933,7 @@ export default function NuanyuApp() {
             nickname: profileData.nickname || "",
             interests: profileData.interests || [],
             strengths: profileData.strengths || [],
+            banned: profileData.banned || false,
           });
         }
       } catch (err) {
