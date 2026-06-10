@@ -1534,7 +1534,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   };
 
   return (
-    <div style={{ paddingBottom: 90 }}>
+    <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ padding: "18px 16px 14px" }}>
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 24, fontWeight: 700, color: C.plum }}>{t.feedTitle}</div>
         <div style={{ color: C.plumSoft, fontSize: 12.5, marginTop: 2 }}>{t.feedSub}</div>
@@ -1607,7 +1607,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
 function Rooms({ lang, onEnter }) {
   const t = STR[lang];
   return (
-    <div style={{ paddingBottom: 90 }}>
+    <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ padding: "18px 16px 14px" }}>
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 24, fontWeight: 700, color: C.plum }}>{t.roomsTitle}</div>
         <div style={{ color: C.plumSoft, fontSize: 12.5, marginTop: 2 }}>{t.roomsSub}</div>
@@ -2014,7 +2014,9 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           </button>
         </div>
       )}
-      <div style={{ padding: 12, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ paddingTop: 12, paddingLeft: 12, paddingRight: 12,
+        paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+        borderTop: `1px solid ${C.line}`, display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={() => setShowEmojiPicker((v) => !v)}
           style={{ width: 36, height: 36, borderRadius: 999, border: `1px solid ${showEmojiPicker ? C.terracotta : C.line}`,
             background: showEmojiPicker ? C.peach : "transparent", flexShrink: 0,
@@ -2225,7 +2227,7 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
   );
 
   return (
-    <div style={{ paddingBottom: 90 }}>
+    <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
         <LangToggle lang={lang} setLang={setLang} />
       </div>
@@ -2301,7 +2303,9 @@ function TabBar({ lang, tab, setTab }) {
   ];
   return (
     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex",
-      background: C.card, borderTop: `1px solid ${C.line}`, padding: "8px 0 14px" }}>
+      background: C.card, borderTop: `1px solid ${C.line}`,
+      paddingTop: 8, paddingLeft: 0, paddingRight: 0,
+      paddingBottom: "calc(14px + env(safe-area-inset-bottom, 0px))" }}>
       {tabs.map((tb) => {
         const Icon = tb.icon, on = tab === tb.id;
         return (
@@ -2445,10 +2449,12 @@ export default function NuanyuApp() {
   };
 
   const shell = (children) => (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh",
-      background: "#EFE6DD", padding: 20, fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }}>
-      <div style={{ width: 390, height: 760, borderRadius: 38, overflow: "hidden", position: "relative",
-        background: C.bg, boxShadow: "0 30px 70px rgba(74,47,61,.28)", border: "10px solid #2A1C24" }}>
+    <div className="galene-outer"
+      style={{ display: "flex", justifyContent: "center", alignItems: "center",
+        background: "#EFE6DD", padding: 20, fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }}>
+      <div className="galene-shell"
+        style={{ width: 390, height: 760, borderRadius: 38, overflow: "hidden", position: "relative",
+          background: C.bg, boxShadow: "0 30px 70px rgba(74,47,61,.28)", border: "10px solid #2A1C24" }}>
         {children}
       </div>
     </div>
