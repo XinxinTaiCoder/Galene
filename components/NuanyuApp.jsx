@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
@@ -227,6 +227,33 @@ const ROOM_MSGS = {
     { id: 3, av: "🌿", name: "Xiaoman", text: "I got seven rejections last month and now I have an offer. It does pass, truly.", me: false },
   ],
 };
+
+// ── Translation ─────────────────────────────────────────────
+function detectLang(text) {
+  return /[一-鿿]/.test(text) ? "zh" : "en";
+}
+
+async function translateText(text) {
+  const src = detectLang(text);
+  const pair = src === "zh" ? "zh-CN|en-GB" : "en-GB|zh-CN";
+  const res = await fetch(
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 500))}&langpair=${pair}`
+  );
+  const json = await res.json();
+  return json.responseData?.translatedText || null;
+}
+
+function useLongPress(callback, delay = 600) {
+  const timer = useRef(null);
+  const moved = useRef(false);
+  const start = useCallback(() => {
+    moved.current = false;
+    timer.current = setTimeout(() => { if (!moved.current) callback(); }, delay);
+  }, [callback, delay]);
+  const cancel = useCallback(() => clearTimeout(timer.current), []);
+  const move = useCallback(() => { moved.current = true; clearTimeout(timer.current); }, []);
+  return { onPointerDown: start, onPointerUp: cancel, onPointerLeave: cancel, onPointerCancel: cancel, onPointerMove: move };
+}
 
 // ── Small bits ──────────────────────────────────────────────
 function LangToggle({ lang, setLang, dark }) {
@@ -696,6 +723,39 @@ function AbuseModal({ lang, onClose }) {
             fontFamily: "'Noto Serif SC',serif" }}>
           {isZh ? "好的，我改改" : "Got it, let me rephrase"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function TranslationSheet({ original, translated, loading, lang, onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.4)",
+      display: "flex", alignItems: "flex-end", zIndex: 300 }} onClick={onClose}>
+      <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", width: "100%",
+        padding: "20px 20px 36px", boxShadow: "0 -8px 32px rgba(74,47,61,.2)" }}
+        onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: C.plumSoft, display: "flex", alignItems: "center", gap: 5 }}>
+            <Globe size={12} />
+            {lang === "zh" ? "翻译" : "Translation"}
+          </div>
+          <button onClick={onClose}
+            style={{ border: "none", background: "none", cursor: "pointer", color: C.plumSoft, padding: 2 }}>
+            <X size={17} />
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.plumSoft, lineHeight: 1.6, marginBottom: 12,
+          paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
+          {original}
+        </div>
+        {loading ? (
+          <div style={{ fontSize: 13, color: C.plumSoft, padding: "10px 0", textAlign: "center" }}>
+            {lang === "zh" ? "翻译中…" : "Translating…"}
+          </div>
+        ) : (
+          <div style={{ fontSize: 14, color: C.plum, lineHeight: 1.75 }}>{translated}</div>
+        )}
       </div>
     </div>
   );
@@ -1263,10 +1323,12 @@ function CommentsSection({ postId, userId, lang, t }) {
 }
 
 // ── Post Card ────────────────────────────────────────────────
-function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId }) {
+function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId, onTranslate }) {
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
+  const translateCb = useCallback(() => onTranslate(post.body), [onTranslate, post.body]);
+  const lp = useLongPress(translateCb);
   return (
     <div style={{ margin: "0 16px 14px", background: C.card, borderRadius: 18,
       padding: 16, border: `1px solid ${C.line}` }}>
@@ -1287,7 +1349,7 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
             padding: "3px 9px", borderRadius: 999 }}>{post.tag}</span>
         )}
       </div>
-      <div style={{ fontSize: 14.5, color: C.plum, lineHeight: 1.7 }}>{post.body}</div>
+      <div {...lp} style={{ fontSize: 14.5, color: C.plum, lineHeight: 1.7, userSelect: "none" }}>{post.body}</div>
       {post.image_emoji && (
         <div style={{ marginTop: 12, height: 130, borderRadius: 14, background: C.cardWarm,
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>{post.image_emoji}</div>
@@ -1337,6 +1399,18 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [profileHugsSent, setProfileHugsSent] = useState(new Set());
   const [showReportModal, setShowReportModal] = useState(false);
   const [bannedAlert, setBannedAlert] = useState(false);
+  const [txSheet, setTxSheet] = useState(null);
+
+  const handleTranslate = useCallback(async (text) => {
+    setTxSheet({ text, translated: null, loading: true });
+    try {
+      const result = await translateText(text);
+      setTxSheet((s) => s ? { ...s, translated: result, loading: false } : null);
+    } catch {
+      setTxSheet((s) => s ? { ...s, loading: false,
+        translated: lang === "zh" ? "翻译失败，请重试" : "Translation failed, please try again" } : null);
+    }
+  }, [lang]);
 
   const fetchProfile = async (authorId) => {
     try {
@@ -1582,6 +1656,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
             timeAgo={timeAgo}
             onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
             userId={userId}
+            onTranslate={handleTranslate}
           />
         ))
       )}
@@ -1599,6 +1674,13 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
               onClose={() => { setShowReportModal(false); setViewingProfile(null); }} />
           )}
         </>
+      )}
+      {txSheet && (
+        <TranslationSheet
+          original={txSheet.text} translated={txSheet.translated}
+          loading={txSheet.loading} lang={lang}
+          onClose={() => setTxSheet(null)}
+        />
       )}
     </div>
   );
@@ -1655,7 +1737,9 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [rxCounts, setRxCounts] = useState({});
   const [myReactions, setMyReactions] = useState({});
   const [rxPickerFor, setRxPickerFor] = useState(null);
+  const [txSheet, setTxSheet] = useState(null);
   const blockedIdsRef = useRef(new Set());
+  const lpTimers = useRef({});
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
   const inputRef = useRef(null);
@@ -1736,6 +1820,17 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
       console.error("Reaction error:", err?.message, err?.code, err?.details, err?.hint, err);
     }
   };
+
+  const translateMsg = useCallback(async (msgText) => {
+    setTxSheet({ text: msgText, translated: null, loading: true });
+    try {
+      const result = await translateText(msgText);
+      setTxSheet((s) => s ? { ...s, translated: result, loading: false } : null);
+    } catch {
+      setTxSheet((s) => s ? { ...s, loading: false,
+        translated: lang === "zh" ? "翻译失败，请重试" : "Translation failed, please try again" } : null);
+    }
+  }, [lang]);
 
   const insertEmoji = (e) => {
     const input = inputRef.current;
@@ -1913,10 +2008,17 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
                       style={{ fontSize: 11, color: C.plumSoft, marginBottom: 3, marginLeft: 4,
                         cursor: "pointer" }}>{name}</div>
                   )}
-                  <div style={{ padding: "10px 14px", borderRadius: 16,
-                    borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4,
-                    background: isMe ? C.terracotta : C.card, color: isMe ? "#fff" : C.plum,
-                    fontSize: 14, lineHeight: 1.6, border: isMe ? "none" : `1px solid ${C.line}` }}>
+                  <div
+                    onPointerDown={() => { lpTimers.current[m.id] = setTimeout(() => translateMsg(m.body), 600); }}
+                    onPointerUp={() => clearTimeout(lpTimers.current[m.id])}
+                    onPointerLeave={() => clearTimeout(lpTimers.current[m.id])}
+                    onPointerCancel={() => clearTimeout(lpTimers.current[m.id])}
+                    onPointerMove={() => clearTimeout(lpTimers.current[m.id])}
+                    style={{ padding: "10px 14px", borderRadius: 16,
+                      borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4,
+                      background: isMe ? C.terracotta : C.card, color: isMe ? "#fff" : C.plum,
+                      fontSize: 14, lineHeight: 1.6, border: isMe ? "none" : `1px solid ${C.line}`,
+                      userSelect: "none" }}>
                     {quotedMsg && (
                       <div style={{ borderLeft: `3px solid ${isMe ? "rgba(255,255,255,.5)" : C.terracottaSoft}`,
                         paddingLeft: 8, marginBottom: 6, fontSize: 12,
@@ -2050,6 +2152,13 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
               onClose={() => { setShowReportModal(false); setViewingProfile(null); }} />
           )}
         </>
+      )}
+      {txSheet && (
+        <TranslationSheet
+          original={txSheet.text} translated={txSheet.translated}
+          loading={txSheet.loading} lang={lang}
+          onClose={() => setTxSheet(null)}
+        />
       )}
     </div>
   );
