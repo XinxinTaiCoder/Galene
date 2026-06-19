@@ -2579,6 +2579,74 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
   );
 }
 
+function HugSurpriseModal({ lang, count, onClose }) {
+  const [phase, setPhase] = useState("in");
+  const closedRef = useRef(false);
+
+  const dismiss = useCallback(() => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    setPhase("out");
+    setTimeout(onClose, 550);
+  }, [onClose]);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("out"), 2300);
+    const t2 = setTimeout(() => { if (!closedRef.current) { closedRef.current = true; onClose(); } }, 2900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [onClose]);
+
+  const msg = lang === "zh"
+    ? (count > 1 ? `有 ${count} 个人送你温暖抱抱` : "有人送你一个温暖抱抱 🤗")
+    : (count > 1 ? `${count} people sent you warm hugs` : "Someone sent you a warm hug 🤗");
+
+  return (
+    <>
+      <style>{`
+        @keyframes hugPop{0%{transform:scale(0.15);opacity:0}60%{transform:scale(1.18);opacity:1}80%{transform:scale(0.93)}100%{transform:scale(1)}}
+        @keyframes hugFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-9px) scale(1.06)}}
+        @keyframes hugFadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes hugFadeOut{from{opacity:1}to{opacity:0}}
+      `}</style>
+      <div onClick={dismiss}
+        style={{ position: "absolute", inset: 0, zIndex: 500, display: "flex",
+          flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0,
+          background: `radial-gradient(ellipse at 50% 42%, ${C.peach} 0%, rgba(251,243,236,0.97) 68%)`,
+          animation: `${phase === "in" ? "hugFadeIn 0.45s ease forwards" : "hugFadeOut 0.55s ease forwards"}`,
+          cursor: "pointer", userSelect: "none" }}>
+
+        {/* primary emoji */}
+        <div style={{ fontSize: 78, lineHeight: 1, marginBottom: 6,
+          animation: phase === "in"
+            ? "hugPop 0.65s cubic-bezier(.36,.07,.19,.97) both, hugFloat 2.2s ease-in-out 0.65s infinite"
+            : "none" }}>
+          🤗
+        </div>
+
+        {/* second emoji if multiple huggers */}
+        {count > 1 && (
+          <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 6, opacity: 0.72,
+            animation: phase === "in"
+              ? "hugPop 0.65s 0.18s cubic-bezier(.36,.07,.19,.97) both, hugFloat 2.4s ease-in-out 0.83s infinite"
+              : "none" }}>
+            🤗
+          </div>
+        )}
+
+        <div style={{ marginTop: 20, fontFamily: "'Noto Serif SC',serif", fontSize: 17,
+          fontWeight: 700, color: C.plum, textAlign: "center", lineHeight: 1.65,
+          padding: "0 36px", opacity: phase === "in" ? 1 : 0, transition: "opacity 0.3s" }}>
+          {msg}
+        </div>
+
+        <div style={{ marginTop: 10, fontSize: 11, color: C.plumSoft, opacity: 0.65 }}>
+          {lang === "zh" ? "轻触屏幕关闭" : "Tap anywhere to close"}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function TabBar({ lang, tab, setTab, notifCount }) {
   const t = STR[lang];
   const tabs = [
@@ -2655,6 +2723,7 @@ export default function NuanyuApp() {
   const [showCrisisModal, setShowCrisisModal] = useState(false);
   const [showAbuseModal, setShowAbuseModal] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [hugNotifs, setHugNotifs] = useState(null);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -2733,6 +2802,17 @@ export default function NuanyuApp() {
     };
     fetchCount();
 
+    const fetchHugs = async () => {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("recipient_id", userId)
+        .eq("type", "profile_hug")
+        .eq("read", false);
+      if (data && data.length > 0) setHugNotifs(data);
+    };
+    fetchHugs();
+
     const ch = supabase
       .channel(`notifs:${userId}`)
       .on("postgres_changes", {
@@ -2745,6 +2825,14 @@ export default function NuanyuApp() {
 
     return () => supabase.removeChannel(ch);
   }, [userId]);
+
+  const dismissHugModal = useCallback(async () => {
+    if (!hugNotifs?.length) return;
+    const ids = hugNotifs.map((n) => n.id);
+    setHugNotifs(null);
+    setNotifCount((prev) => Math.max(0, prev - ids.length));
+    await supabase.from("notifications").update({ read: true }).in("id", ids);
+  }, [hugNotifs]);
 
   const handleOnboardingDone = async (data) => {
     if (!userId) return;
@@ -2819,6 +2907,9 @@ export default function NuanyuApp() {
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} notifCount={notifCount} />
         </>
+      )}
+      {hugNotifs?.length > 0 && profile && !locked && (
+        <HugSurpriseModal lang={lang} count={hugNotifs.length} onClose={dismissHugModal} />
       )}
       {showAbuseModal && (
         <AbuseModal lang={lang} onClose={() => setShowAbuseModal(false)} />
