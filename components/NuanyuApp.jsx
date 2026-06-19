@@ -5,7 +5,7 @@ import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
-  Image as ImageIcon
+  Image as ImageIcon, Bell,
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -227,6 +227,27 @@ const ROOM_MSGS = {
     { id: 3, av: "🌿", name: "Xiaoman", text: "I got seven rejections last month and now I have an offer. It does pass, truly.", me: false },
   ],
 };
+
+// ── Notification helpers ────────────────────────────────────
+async function insertNotif({ recipientId, type, actorId, refId }) {
+  if (!recipientId || recipientId === actorId) return;
+  try {
+    await supabase.from("notifications").insert({
+      recipient_id: recipientId, type, actor_id: actorId, ref_id: refId || null,
+    });
+  } catch (err) {
+    console.error("Notif insert error:", err?.message);
+  }
+}
+
+function timeAgoStr(dateStr, lang) {
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
+  if (diff < 1) return lang === "zh" ? "刚刚" : "just now";
+  if (diff < 60) return lang === "zh" ? `${diff} 分钟前` : `${diff}m ago`;
+  const hrs = Math.floor(diff / 60);
+  if (hrs < 24) return lang === "zh" ? `${hrs} 小时前` : `${hrs}h ago`;
+  return lang === "zh" ? `${Math.floor(hrs / 24)} 天前` : `${Math.floor(hrs / 24)}d ago`;
+}
 
 // ── Translation ─────────────────────────────────────────────
 function detectLang(text) {
@@ -1205,7 +1226,7 @@ function CommentItem({ comment, replies, lang, onReply, depth }) {
   );
 }
 
-function CommentsSection({ postId, userId, lang, t }) {
+function CommentsSection({ postId, userId, lang, t, postAuthorId }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -1249,6 +1270,7 @@ function CommentsSection({ postId, userId, lang, t }) {
       setComments((prev) => [...prev, data]);
       setExpanded(true);
       setText(""); setReplyTo(null);
+      insertNotif({ recipientId: postAuthorId, type: "comment", actorId: userId, refId: postId });
     } catch (err) {
       console.error("Comment submit error:", err?.message, err?.code, err?.details, err?.hint, err);
     } finally {
@@ -1373,7 +1395,7 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
           </button>
         )}
       </div>
-      {userId && <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} />}
+      {userId && <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} postAuthorId={post.author_id} />}
     </div>
   );
 }
@@ -1452,6 +1474,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         const { error } = await supabase.from("profile_hugs")
           .insert({ from_id: userId, to_id: targetId });
         if (error) throw error;
+        insertNotif({ recipientId: targetId, type: "profile_hug", actorId: userId, refId: null });
       }
     } catch (err) {
       setProfileHugsSent(profileHugsSent);
@@ -1529,6 +1552,8 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         await supabase.from("hugs").delete().eq("post_id", postId).eq("profile_id", userId);
       } else {
         await supabase.from("hugs").insert({ post_id: postId, profile_id: userId });
+        const post = posts.find((p) => p.id === postId);
+        if (post) insertNotif({ recipientId: post.author_id, type: "post_hug", actorId: userId, refId: postId });
       }
     } catch (err) {
       setMyHugs(myHugs);
@@ -1786,6 +1811,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         const { error } = await supabase.from("profile_hugs")
           .insert({ from_id: userId, to_id: targetId });
         if (error) throw error;
+        insertNotif({ recipientId: targetId, type: "profile_hug", actorId: userId, refId: null });
       }
     } catch (err) {
       setProfileHugsSent(profileHugsSent);
@@ -1951,6 +1977,9 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
       seenIds.current.add(data.id);
       setMsgs((prev) => [...prev, data]);
       if (detectCrisis(body)) onCrisisDetected();
+      if (replyToId && savedReplyTo?.author_id) {
+        insertNotif({ recipientId: savedReplyTo.author_id, type: "message_reply", actorId: userId, refId: replyToId });
+      }
     } catch (err) {
       console.error("Send error:", err?.message, err?.code, err?.details, err?.hint, err);
       setText(body);
@@ -2273,12 +2302,13 @@ function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
 }
 
 // ── Me ──────────────────────────────────────────────────────
-function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
+function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead }) {
   const t = STR[lang];
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
   const [totalHugs, setTotalHugs] = useState(null);
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
@@ -2338,7 +2368,21 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
 
   return (
     <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center",
+        gap: 10, padding: "14px 16px 0" }}>
+        <button onClick={() => setShowNotifs(true)}
+          style={{ position: "relative", background: "none", border: "none",
+            cursor: "pointer", color: C.plum, padding: 4, display: "flex" }}>
+          <Bell size={20} />
+          {notifCount > 0 && (
+            <div style={{ position: "absolute", top: 0, right: 0, minWidth: 16, height: 16,
+              borderRadius: 999, background: C.terracotta, color: "#fff",
+              fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center",
+              justifyContent: "center", padding: "0 3px", lineHeight: 1 }}>
+              {notifCount > 99 ? "99+" : notifCount}
+            </div>
+          )}
+        </button>
         <LangToggle lang={lang} setLang={setLang} />
       </div>
       <div style={{ padding: "12px 16px 20px", textAlign: "center" }}>
@@ -2400,11 +2444,142 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate }) {
       {showGuard && (
         <GuardSettings lang={lang} userId={userId} onClose={() => setShowGuard(false)} />
       )}
+      {showNotifs && (
+        <NotificationsPage lang={lang} userId={userId}
+          onClose={() => setShowNotifs(false)}
+          onNavigateToFeed={onNavigateToFeed}
+          onNavigateToRoom={onNavigateToRoom}
+          onNotifRead={onNotifRead}
+        />
+      )}
     </div>
   );
 }
 
-function TabBar({ lang, tab, setTab }) {
+// ── Notifications ────────────────────────────────────────────
+function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigateToRoom, onNotifRead }) {
+  const [notifs, setNotifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*, actor:actor_id(nickname, avatar)")
+          .eq("recipient_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        setNotifs(data || []);
+      } catch (err) {
+        console.error("Notifs load:", err?.message, err?.code, err?.details, err?.hint, err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [userId]);
+
+  const markRead = async (notif) => {
+    if (notif.read) return;
+    try {
+      const { error } = await supabase.from("notifications").update({ read: true }).eq("id", notif.id);
+      if (error) throw error;
+      setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
+      onNotifRead();
+    } catch (err) {
+      console.error("Notif mark read:", err?.message);
+    }
+  };
+
+  const handleClick = async (notif) => {
+    await markRead(notif);
+    if (notif.type === "post_hug" || notif.type === "comment") {
+      onClose(); onNavigateToFeed();
+    } else if (notif.type === "profile_hug") {
+      onClose();
+    } else if (notif.type === "message_reply" && notif.ref_id) {
+      try {
+        const { data } = await supabase.from("messages").select("room_slug").eq("id", notif.ref_id).single();
+        if (data?.room_slug) {
+          const room = ROOMS.find((r) => r.slug === data.room_slug);
+          if (room) { onClose(); onNavigateToRoom(room); }
+        }
+      } catch (err) {
+        console.error("Notif nav:", err?.message);
+      }
+    }
+  };
+
+  const describe = (n) => {
+    const actor = n.actor?.nickname || (lang === "zh" ? "有人" : "Someone");
+    if (lang === "zh") {
+      if (n.type === "post_hug")      return `${actor} 给你的帖子送了抱抱 🤗`;
+      if (n.type === "profile_hug")   return `${actor} 给你送了抱抱 🤗`;
+      if (n.type === "comment")       return `${actor} 评论了你的帖子`;
+      if (n.type === "message_reply") return `${actor} 在聊天室回复了你的消息`;
+    } else {
+      if (n.type === "post_hug")      return `${actor} hugged your post 🤗`;
+      if (n.type === "profile_hug")   return `${actor} sent you a hug 🤗`;
+      if (n.type === "comment")       return `${actor} replied to your post`;
+      if (n.type === "message_reply") return `${actor} replied to your message in a room`;
+    }
+    return n.type;
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+      display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
+        borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
+        <button onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 4 }}>
+          <X size={20} />
+        </button>
+        <div style={{ flex: 1, textAlign: "center", fontFamily: "'Noto Serif SC',serif",
+          fontSize: 16, color: C.plum, fontWeight: 700 }}>
+          {lang === "zh" ? "通知" : "Notifications"}
+        </div>
+        <div style={{ width: 28 }} />
+      </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {loading ? (
+          <div style={{ textAlign: "center", color: C.plumSoft, fontSize: 13, padding: "40px 0" }}>
+            {lang === "zh" ? "载入中…" : "Loading…"}
+          </div>
+        ) : notifs.length === 0 ? (
+          <div style={{ textAlign: "center", color: C.plumSoft, fontSize: 14, padding: "48px 24px" }}>
+            {lang === "zh" ? "暂无通知 🌿" : "No notifications yet 🌿"}
+          </div>
+        ) : notifs.map((n) => (
+          <div key={n.id} onClick={() => handleClick(n)}
+            style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+              borderBottom: `1px solid ${C.line}`, cursor: "pointer",
+              background: n.read ? "transparent" : C.cardWarm }}>
+            <div style={{ width: 38, height: 38, borderRadius: 999, flexShrink: 0,
+              background: C.peach, display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 20 }}>
+              {n.actor?.avatar || "🌿"}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>{describe(n)}</div>
+              <div style={{ fontSize: 11, color: C.plumSoft, marginTop: 3 }}>
+                {timeAgoStr(n.created_at, lang)}
+              </div>
+            </div>
+            {!n.read && (
+              <div style={{ width: 8, height: 8, borderRadius: 999,
+                background: C.terracotta, flexShrink: 0 }} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TabBar({ lang, tab, setTab, notifCount }) {
   const t = STR[lang];
   const tabs = [
     { id: "feed", label: t.tabFeed, icon: Home },
@@ -2422,8 +2597,15 @@ function TabBar({ lang, tab, setTab }) {
           <button key={tb.id} onClick={() => setTab(tb.id)}
             style={{ flex: 1, border: "none", background: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              color: on ? C.terracotta : C.plumSoft }}>
-            <Icon size={21} fill={on ? C.terracotta : "none"} />
+              color: on ? C.terracotta : C.plumSoft, position: "relative" }}>
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <Icon size={21} fill={on ? C.terracotta : "none"} />
+              {tb.id === "me" && notifCount > 0 && (
+                <div style={{ position: "absolute", top: -3, right: -5, width: 8, height: 8,
+                  borderRadius: 999, background: C.terracotta,
+                  border: `1.5px solid ${C.card}` }} />
+              )}
+            </div>
             <span style={{ fontSize: 11 }}>{tb.label}</span>
           </button>
         );
@@ -2472,6 +2654,7 @@ export default function NuanyuApp() {
   const [userId, setUserId] = useState(null);
   const [showCrisisModal, setShowCrisisModal] = useState(false);
   const [showAbuseModal, setShowAbuseModal] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -2538,6 +2721,31 @@ export default function NuanyuApp() {
     init();
   }, []);
 
+  useEffect(() => {
+    if (!userId) return;
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("recipient_id", userId)
+        .eq("read", false);
+      setNotifCount(count ?? 0);
+    };
+    fetchCount();
+
+    const ch = supabase
+      .channel(`notifs:${userId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `recipient_id=eq.${userId}`,
+      }, () => setNotifCount((n) => n + 1))
+      .subscribe();
+
+    return () => supabase.removeChannel(ch);
+  }, [userId]);
+
   const handleOnboardingDone = async (data) => {
     if (!userId) return;
     setSaving(true);
@@ -2602,9 +2810,14 @@ export default function NuanyuApp() {
               onCrisisDetected={() => setShowCrisisModal(true)}
               onAbuseDetected={() => setShowAbuseModal(true)} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
-            {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId} onProfileUpdate={(p) => setProfile(p)} />}
+            {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId}
+              onProfileUpdate={(p) => setProfile(p)}
+              notifCount={notifCount}
+              onNotifRead={() => setNotifCount((n) => Math.max(0, n - 1))}
+              onNavigateToFeed={() => setTab("feed")}
+              onNavigateToRoom={(r) => { setRoom(r); }} />}
           </div>
-          <TabBar lang={lang} tab={tab} setTab={setTab} />
+          <TabBar lang={lang} tab={tab} setTab={setTab} notifCount={notifCount} />
         </>
       )}
       {showAbuseModal && (
