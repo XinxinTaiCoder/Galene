@@ -2579,68 +2579,111 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
   );
 }
 
-function HugSurpriseModal({ lang, count, onClose }) {
-  const [phase, setPhase] = useState("in");
-  const closedRef = useRef(false);
+function HugSurpriseModal({ lang, hugs, onClose, onViewProfile }) {
+  const [idx, setIdx] = useState(0);
+  const [modalPhase, setModalPhase] = useState("in");
+  const [slidePhase, setSlidePhase] = useState("in");
+  const doneRef = useRef(false);
 
-  const dismiss = useCallback(() => {
-    if (closedRef.current) return;
-    closedRef.current = true;
-    setPhase("out");
-    setTimeout(onClose, 550);
+  const closeAll = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setModalPhase("out");
+    setTimeout(onClose, 480);
   }, [onClose]);
 
+  const advance = useCallback(() => {
+    if (idx < hugs.length - 1) {
+      setSlidePhase("out");
+      setTimeout(() => { setIdx((i) => i + 1); setSlidePhase("in"); }, 320);
+    } else {
+      closeAll();
+    }
+  }, [idx, hugs.length, closeAll]);
+
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("out"), 2300);
-    const t2 = setTimeout(() => { if (!closedRef.current) { closedRef.current = true; onClose(); } }, 2900);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onClose]);
+    const t = setTimeout(() => advanceRef.current(), 2600);
+    return () => clearTimeout(t);
+  }, [idx]);
 
-  const msg = lang === "zh"
-    ? (count > 1 ? `有 ${count} 个人送你温暖抱抱` : "有人送你一个温暖抱抱 🤗")
-    : (count > 1 ? `${count} people sent you warm hugs` : "Someone sent you a warm hug 🤗");
+  const current = hugs[idx] || {};
+  const actor = current.actor || {};
+  const name = actor.nickname || (lang === "zh" ? "Ta" : "Someone");
+  const tagline = lang === "zh"
+    ? `${name} 悄悄抱了你一下`
+    : `${name} sent you a quiet hug`;
 
   return (
     <>
       <style>{`
-        @keyframes hugPop{0%{transform:scale(0.15);opacity:0}60%{transform:scale(1.18);opacity:1}80%{transform:scale(0.93)}100%{transform:scale(1)}}
-        @keyframes hugFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-9px) scale(1.06)}}
+        @keyframes hugPop{0%{transform:scale(0.12);opacity:0}62%{transform:scale(1.16);opacity:1}82%{transform:scale(0.94)}100%{transform:scale(1)}}
+        @keyframes hugFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.05)}}
+        @keyframes hugGlow{0%,100%{box-shadow:0 0 0 0 rgba(201,117,90,0)}50%{box-shadow:0 0 0 10px rgba(201,117,90,0.18),0 0 24px 4px rgba(245,217,200,0.55)}}
         @keyframes hugFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes hugFadeOut{from{opacity:1}to{opacity:0}}
+        @keyframes slideIn{from{opacity:0;transform:translateY(12px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes slideOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-10px) scale(0.92)}}
       `}</style>
-      <div onClick={dismiss}
-        style={{ position: "absolute", inset: 0, zIndex: 500, display: "flex",
-          flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0,
-          background: `radial-gradient(ellipse at 50% 42%, ${C.peach} 0%, rgba(251,243,236,0.97) 68%)`,
-          animation: `${phase === "in" ? "hugFadeIn 0.45s ease forwards" : "hugFadeOut 0.55s ease forwards"}`,
+      <div onClick={closeAll}
+        style={{ position: "absolute", inset: 0, zIndex: 500,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          background: `radial-gradient(ellipse at 50% 40%, ${C.peach} 0%, rgba(251,243,236,0.97) 65%)`,
+          animation: modalPhase === "in" ? "hugFadeIn 0.42s ease forwards" : "hugFadeOut 0.48s ease forwards",
           cursor: "pointer", userSelect: "none" }}>
 
-        {/* primary emoji */}
-        <div style={{ fontSize: 78, lineHeight: 1, marginBottom: 6,
-          animation: phase === "in"
-            ? "hugPop 0.65s cubic-bezier(.36,.07,.19,.97) both, hugFloat 2.2s ease-in-out 0.65s infinite"
-            : "none" }}>
-          🤗
+        {/* per-slide block, keyed so keyframes restart */}
+        <div key={idx}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center",
+            animation: slidePhase === "in" ? "slideIn 0.38s ease forwards" : "slideOut 0.32s ease forwards" }}>
+
+          {/* hug emoji */}
+          <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 20,
+            animation: "hugPop 0.62s cubic-bezier(.36,.07,.19,.97) both, hugFloat 2.3s ease-in-out 0.62s infinite" }}>
+            🤗
+          </div>
+
+          {/* clickable actor avatar */}
+          <div
+            onClick={(e) => { e.stopPropagation(); onViewProfile(current.actor_id); }}
+            title={lang === "zh" ? "点击查看 TA 的主页" : "View profile"}
+            style={{ width: 72, height: 72, borderRadius: 999, cursor: "pointer",
+              background: `linear-gradient(135deg, ${C.terracottaSoft}, ${C.peach})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 38, marginBottom: 10,
+              border: `3px solid rgba(255,255,255,0.85)`,
+              animation: "hugGlow 2.2s ease-in-out 0.5s infinite" }}>
+            {actor.avatar || "🌿"}
+          </div>
+
+          {/* nickname */}
+          <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 15, fontWeight: 700,
+            color: C.plum, marginBottom: 5 }}>
+            {name}
+          </div>
+
+          {/* tagline */}
+          <div style={{ fontSize: 13.5, color: C.plumSoft, textAlign: "center",
+            padding: "0 44px", lineHeight: 1.65 }}>
+            {tagline}
+          </div>
         </div>
 
-        {/* second emoji if multiple huggers */}
-        {count > 1 && (
-          <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 6, opacity: 0.72,
-            animation: phase === "in"
-              ? "hugPop 0.65s 0.18s cubic-bezier(.36,.07,.19,.97) both, hugFloat 2.4s ease-in-out 0.83s infinite"
-              : "none" }}>
-            🤗
+        {/* slide dot indicators */}
+        {hugs.length > 1 && (
+          <div style={{ display: "flex", gap: 6, marginTop: 26 }}>
+            {hugs.map((_, i) => (
+              <div key={i} style={{ height: 6, borderRadius: 999,
+                width: i === idx ? 18 : 6,
+                background: i === idx ? C.terracotta : C.terracottaSoft,
+                transition: "all 0.3s ease" }} />
+            ))}
           </div>
         )}
 
-        <div style={{ marginTop: 20, fontFamily: "'Noto Serif SC',serif", fontSize: 17,
-          fontWeight: 700, color: C.plum, textAlign: "center", lineHeight: 1.65,
-          padding: "0 36px", opacity: phase === "in" ? 1 : 0, transition: "opacity 0.3s" }}>
-          {msg}
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 11, color: C.plumSoft, opacity: 0.65 }}>
-          {lang === "zh" ? "轻触屏幕关闭" : "Tap anywhere to close"}
+        <div style={{ marginTop: 14, fontSize: 11, color: C.plumSoft, opacity: 0.58 }}>
+          {lang === "zh" ? "点头像查看 TA · 轻触其他位置关闭" : "Tap avatar to view · tap elsewhere to close"}
         </div>
       </div>
     </>
@@ -2724,6 +2767,8 @@ export default function NuanyuApp() {
   const [showAbuseModal, setShowAbuseModal] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [hugNotifs, setHugNotifs] = useState(null);
+  const [hugViewProfile, setHugViewProfile] = useState(null);
+  const [hugProfileHugged, setHugProfileHugged] = useState(false);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -2805,10 +2850,11 @@ export default function NuanyuApp() {
     const fetchHugs = async () => {
       const { data } = await supabase
         .from("notifications")
-        .select("id")
+        .select("id, actor_id, actor:actor_id(nickname, avatar)")
         .eq("recipient_id", userId)
         .eq("type", "profile_hug")
-        .eq("read", false);
+        .eq("read", false)
+        .order("created_at", { ascending: true });
       if (data && data.length > 0) setHugNotifs(data);
     };
     fetchHugs();
@@ -2826,13 +2872,25 @@ export default function NuanyuApp() {
     return () => supabase.removeChannel(ch);
   }, [userId]);
 
-  const dismissHugModal = useCallback(async () => {
+  const dismissHugModal = useCallback(() => {
     if (!hugNotifs?.length) return;
     const ids = hugNotifs.map((n) => n.id);
     setHugNotifs(null);
     setNotifCount((prev) => Math.max(0, prev - ids.length));
-    await supabase.from("notifications").update({ read: true }).in("id", ids);
+    supabase.from("notifications").update({ read: true }).in("id", ids);
   }, [hugNotifs]);
+
+  const handleViewHugProfile = useCallback(async (actorId) => {
+    dismissHugModal();
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, avatar, nickname, interests, strengths")
+        .eq("id", actorId)
+        .single();
+      if (data) { setHugViewProfile(data); setHugProfileHugged(false); }
+    } catch (err) { console.error("Fetch hug profile error:", err?.message); }
+  }, [dismissHugModal]);
 
   const handleOnboardingDone = async (data) => {
     if (!userId) return;
@@ -2909,7 +2967,18 @@ export default function NuanyuApp() {
         </>
       )}
       {hugNotifs?.length > 0 && profile && !locked && (
-        <HugSurpriseModal lang={lang} count={hugNotifs.length} onClose={dismissHugModal} />
+        <HugSurpriseModal lang={lang} hugs={hugNotifs} onClose={dismissHugModal} onViewProfile={handleViewHugProfile} />
+      )}
+      {hugViewProfile && (
+        <ProfileCard
+          profile={hugViewProfile} lang={lang}
+          onClose={() => { setHugViewProfile(null); setHugProfileHugged(false); }}
+          onHug={() => {
+            insertNotif({ recipientId: hugViewProfile.id, type: "profile_hug", actorId: userId });
+            setHugProfileHugged(true);
+          }}
+          isHugged={hugProfileHugged}
+        />
       )}
       {showAbuseModal && (
         <AbuseModal lang={lang} onClose={() => setShowAbuseModal(false)} />
