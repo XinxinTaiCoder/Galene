@@ -2872,12 +2872,20 @@ export default function NuanyuApp() {
     return () => supabase.removeChannel(ch);
   }, [userId]);
 
-  const dismissHugModal = useCallback(() => {
+  const dismissHugModal = useCallback(async () => {
     if (!hugNotifs?.length) return;
     const ids = hugNotifs.map((n) => n.id);
     setHugNotifs(null);
     setNotifCount((prev) => Math.max(0, prev - ids.length));
-    supabase.from("notifications").update({ read: true }).in("id", ids);
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .in("id", ids);
+      if (error) console.error("Mark hugs read error:", error.message, error.code, error.details, error.hint);
+    } catch (err) {
+      console.error("Mark hugs read exception:", err?.message, err);
+    }
   }, [hugNotifs]);
 
   const handleViewHugProfile = useCallback(async (actorId) => {
