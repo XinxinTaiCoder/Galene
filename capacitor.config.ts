@@ -8,7 +8,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //   WKWebView — all API routes and Supabase Realtime connections work normally.
 // - For local dev, uncomment the dev url and use your machine's LAN IP.
 
-const PROD_URL = "https://your-galene-vercel-url.vercel.app"; // ← replace this
+const PROD_URL = "https://galene-ydtp.vercel.app";
 
 const config: CapacitorConfig = {
   appId: "app.galene.ios",

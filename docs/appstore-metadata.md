@@ -137,8 +137,8 @@ Key flows to review:
 5. Me tab → Crisis Resources (hotlines for CN/TW/HK/US/UK/CA/AU)
 6. Me tab → Terms of Service / Privacy Policy
 
-Support URL: https://galene.app/support
-Privacy Policy URL: https://galene.app/privacy
+Support URL: https://galene-ydtp.vercel.app/support
+Privacy Policy URL: https://galene-ydtp.vercel.app/privacy
 ```
 
 ---
@@ -147,9 +147,9 @@ Privacy Policy URL: https://galene.app/privacy
 
 | Field | Value |
 |---|---|
-| Marketing URL | https://galene.app |
-| Support URL | https://galene.app/support |
-| Privacy Policy URL | https://galene.app/privacy |
+| Marketing URL | https://galene-ydtp.vercel.app |
+| Support URL | https://galene-ydtp.vercel.app/support |
+| Privacy Policy URL | https://galene-ydtp.vercel.app/privacy |
 
 ---
 
