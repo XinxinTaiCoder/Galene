@@ -22,10 +22,10 @@ const nextConfig = {
               "img-src 'self' data: blob: https://*.supabase.co",
               // Inline styles used throughout the app
               "style-src 'self' 'unsafe-inline'",
-              // Next.js needs unsafe-eval in dev; restrict to 'none' in prod via env
+              // Next.js inline hydration scripts require 'unsafe-inline' in all envs
               process.env.NODE_ENV === "development"
                 ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-                : "script-src 'self'",
+                : "script-src 'self' 'unsafe-inline'",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
