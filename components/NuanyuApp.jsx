@@ -1226,10 +1226,10 @@ function CommentItem({ comment, replies, lang, onReply, depth }) {
   );
 }
 
-function CommentsSection({ postId, userId, lang, t, postAuthorId }) {
+function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpanded }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!!defaultExpanded);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [sending, setSending] = useState(false);
@@ -1345,14 +1345,14 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId }) {
 }
 
 // ── Post Card ────────────────────────────────────────────────
-function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId, onTranslate }) {
+function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId, onTranslate, openComments }) {
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
   const translateCb = useCallback(() => onTranslate(post.body), [onTranslate, post.body]);
   const lp = useLongPress(translateCb);
   return (
-    <div style={{ margin: "0 16px 14px", background: C.card, borderRadius: 18,
+    <div id={`post-${post.id}`} style={{ margin: "0 16px 14px", background: C.card, borderRadius: 18,
       padding: 16, border: `1px solid ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
         <button onClick={onProfileClick}
@@ -1395,13 +1395,13 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
           </button>
         )}
       </div>
-      {userId && <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} postAuthorId={post.author_id} />}
+      {userId && <CommentsSection postId={post.id} userId={userId} lang={lang} t={t} postAuthorId={post.author_id} defaultExpanded={openComments} />}
     </div>
   );
 }
 
 // ── Feed ────────────────────────────────────────────────────
-function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
+function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highlightPostId, openCommentsFor, onHighlightDone }) {
   const t = STR[lang];
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1422,6 +1422,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [bannedAlert, setBannedAlert] = useState(false);
   const [txSheet, setTxSheet] = useState(null);
+  const [goneToast, setGoneToast] = useState(false);
 
   const handleTranslate = useCallback(async (text) => {
     setTxSheet({ text, translated: null, loading: true });
@@ -1530,6 +1531,20 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
     };
     load();
   }, [userId]);
+
+  useEffect(() => {
+    if (!highlightPostId || loading) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`post-${highlightPostId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        setGoneToast(true);
+        setTimeout(() => setGoneToast(false), 3000);
+      }
+      if (onHighlightDone) onHighlightDone();
+    });
+  }, [loading, highlightPostId]);
 
   const timeAgo = (dateStr) => {
     const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
@@ -1662,6 +1677,13 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
         imagePreview={composeImagePreview} onImageSelect={handleImageSelect}
         onImageClear={clearImage} imageError={imageError}
       />
+      {goneToast && (
+        <div style={{ margin: "0 16px 10px", padding: "11px 14px", borderRadius: 12,
+          background: "#FFF0EC", border: `1px solid ${C.terracottaSoft}`,
+          fontSize: 12.5, color: C.terracotta, textAlign: "center" }}>
+          {lang === "zh" ? "这条内容已不存在" : "This content no longer exists"}
+        </div>
+      )}
       {loading ? (
         <div style={{ padding: "40px 16px", textAlign: "center", color: C.plumSoft, fontSize: 13 }}>
           {lang === "zh" ? "载入中…" : "Loading…"}
@@ -1682,6 +1704,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected }) {
             onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
             userId={userId}
             onTranslate={handleTranslate}
+            openComments={p.id === openCommentsFor}
           />
         ))
       )}
@@ -1746,7 +1769,7 @@ function Rooms({ lang, onEnter }) {
 }
 
 // ── Chat ────────────────────────────────────────────────────
-function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbuseDetected }) {
+function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbuseDetected, highlightMsgId }) {
   const t = STR[lang];
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1768,6 +1791,8 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const bottomRef = useRef(null);
   const seenIds = useRef(new Set());
   const inputRef = useRef(null);
+  const pendingHighlight = useRef(null);
+  const [goneToast, setGoneToast] = useState(false);
 
   useEffect(() => { blockedIdsRef.current = blockedIds; }, [blockedIds]);
 
@@ -1897,6 +1922,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
           (m) => !blocked.has(m.author_id) && !m.profiles?.banned
         );
         rows.forEach((m) => seenIds.current.add(m.id));
+        if (highlightMsgId) pendingHighlight.current = highlightMsgId;
         setMsgs(rows);
 
         if (rows.length > 0) {
@@ -1954,6 +1980,21 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   }, [room.slug, userId]);
 
   useEffect(() => {
+    if (pendingHighlight.current) {
+      const id = pendingHighlight.current;
+      pendingHighlight.current = null;
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`msg-${id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          setGoneToast(true);
+          setTimeout(() => setGoneToast(false), 3000);
+          bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
@@ -2023,7 +2064,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
             const msgMyRx = myReactions[m.id] || new Set();
             const hasReactions = Object.values(msgRxCounts).some((c) => c > 0);
             return (
-              <div key={m.id} style={{ display: "flex", gap: 8,
+              <div key={m.id} id={`msg-${m.id}`} style={{ display: "flex", gap: 8,
                 flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
                 <button onClick={() => !isMe && fetchProfile(m.author_id)}
                   style={{ background: "none", border: "none", padding: 0, flexShrink: 0,
@@ -2114,6 +2155,13 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {goneToast && (
+        <div style={{ margin: "0 12px 4px", padding: "9px 12px", borderRadius: 10,
+          background: "#FFF0EC", border: `1px solid ${C.terracottaSoft}`,
+          fontSize: 12.5, color: C.terracotta, textAlign: "center" }}>
+          {lang === "zh" ? "这条内容已不存在" : "This content no longer exists"}
         </div>
       )}
       {bannedAlert && (
@@ -2302,7 +2350,7 @@ function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
 }
 
 // ── Me ──────────────────────────────────────────────────────
-function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead }) {
+function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
   const t = STR[lang];
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
@@ -2450,6 +2498,8 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
           onNavigateToFeed={onNavigateToFeed}
           onNavigateToRoom={onNavigateToRoom}
           onNotifRead={onNotifRead}
+          onNavigateToPost={onNavigateToPost}
+          onNavigateToProfile={onNavigateToProfile}
         />
       )}
     </div>
@@ -2457,9 +2507,10 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
 }
 
 // ── Notifications ────────────────────────────────────────────
-function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigateToRoom, onNotifRead }) {
+function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [goneToast, setGoneToast] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -2496,16 +2547,29 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
   const handleClick = async (notif) => {
     await markRead(notif);
     if (notif.type === "post_hug" || notif.type === "comment") {
-      onClose(); onNavigateToFeed();
+      onClose();
+      if (notif.ref_id) {
+        onNavigateToPost(notif.ref_id, notif.type === "comment");
+      } else {
+        onNavigateToFeed();
+      }
     } else if (notif.type === "profile_hug") {
       onClose();
+      if (notif.actor_id) onNavigateToProfile(notif.actor_id);
     } else if (notif.type === "message_reply" && notif.ref_id) {
       try {
-        const { data } = await supabase.from("messages").select("room_slug").eq("id", notif.ref_id).single();
-        if (data?.room_slug) {
-          const room = ROOMS.find((r) => r.slug === data.room_slug);
-          if (room) { onClose(); onNavigateToRoom(room); }
+        const { data, error } = await supabase
+          .from("messages")
+          .select("room_slug, hidden")
+          .eq("id", notif.ref_id)
+          .single();
+        if (error || !data || data.hidden) {
+          setGoneToast(true);
+          setTimeout(() => setGoneToast(false), 3000);
+          return;
         }
+        const room = ROOMS.find((r) => r.slug === data.room_slug);
+        if (room) { onClose(); onNavigateToRoom(room, notif.ref_id); }
       } catch (err) {
         console.error("Notif nav:", err?.message);
       }
@@ -2543,6 +2607,13 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
         </div>
         <div style={{ width: 28 }} />
       </div>
+      {goneToast && (
+        <div style={{ margin: "10px 16px 0", padding: "10px 14px", borderRadius: 12,
+          background: "#FFF0EC", border: `1px solid ${C.terracottaSoft}`,
+          fontSize: 12.5, color: C.terracotta, textAlign: "center" }}>
+          {lang === "zh" ? "这条内容已不存在" : "This content no longer exists"}
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
           <div style={{ textAlign: "center", color: C.plumSoft, fontSize: 13, padding: "40px 0" }}>
@@ -2769,6 +2840,9 @@ export default function NuanyuApp() {
   const [hugNotifs, setHugNotifs] = useState(null);
   const [hugViewProfile, setHugViewProfile] = useState(null);
   const [hugProfileHugged, setHugProfileHugged] = useState(false);
+  const [feedHighlightPostId, setFeedHighlightPostId] = useState(null);
+  const [feedOpenCommentsFor, setFeedOpenCommentsFor] = useState(null);
+  const [chatHighlightMsgId, setChatHighlightMsgId] = useState(null);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -2900,6 +2974,17 @@ export default function NuanyuApp() {
     } catch (err) { console.error("Fetch hug profile error:", err?.message); }
   }, [dismissHugModal]);
 
+  const navigateToActorProfile = useCallback(async (actorId) => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, avatar, nickname, interests, strengths")
+        .eq("id", actorId)
+        .single();
+      if (data) { setHugViewProfile(data); setHugProfileHugged(false); }
+    } catch (err) { console.error("Navigate to profile error:", err?.message); }
+  }, []);
+
   const handleOnboardingDone = async (data) => {
     if (!userId) return;
     setSaving(true);
@@ -2954,22 +3039,32 @@ export default function NuanyuApp() {
         <Onboarding lang={lang} setLang={setLang} onDone={handleOnboardingDone} saving={saving} />
       ) : room ? (
         <ChatRoom lang={lang} room={room} profile={profile} userId={userId}
-          onBack={() => setRoom(null)}
+          onBack={() => { setRoom(null); setChatHighlightMsgId(null); }}
           onCrisisDetected={() => setShowCrisisModal(true)}
-          onAbuseDetected={() => setShowAbuseModal(true)} />
+          onAbuseDetected={() => setShowAbuseModal(true)}
+          highlightMsgId={chatHighlightMsgId} />
       ) : (
         <>
           <div style={{ height: "100%", overflowY: "auto" }}>
             {tab === "feed" && <Feed lang={lang} userId={userId} profile={profile}
               onCrisisDetected={() => setShowCrisisModal(true)}
-              onAbuseDetected={() => setShowAbuseModal(true)} />}
+              onAbuseDetected={() => setShowAbuseModal(true)}
+              highlightPostId={feedHighlightPostId}
+              openCommentsFor={feedOpenCommentsFor}
+              onHighlightDone={() => { setFeedHighlightPostId(null); setFeedOpenCommentsFor(null); }} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
             {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId}
               onProfileUpdate={(p) => setProfile(p)}
               notifCount={notifCount}
               onNotifRead={() => setNotifCount((n) => Math.max(0, n - 1))}
               onNavigateToFeed={() => setTab("feed")}
-              onNavigateToRoom={(r) => { setRoom(r); }} />}
+              onNavigateToRoom={(r, msgId) => { setRoom(r); setChatHighlightMsgId(msgId || null); }}
+              onNavigateToPost={(postId, openComments) => {
+                setFeedHighlightPostId(postId);
+                setFeedOpenCommentsFor(openComments ? postId : null);
+                setTab("feed");
+              }}
+              onNavigateToProfile={navigateToActorProfile} />}
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} notifCount={notifCount} />
         </>
