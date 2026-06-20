@@ -5,7 +5,7 @@ import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
-  Image as ImageIcon, Bell, Trash2,
+  Image as ImageIcon, Bell, Trash2, PhoneCall,
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -85,6 +85,7 @@ const STR = {
     termsLink: "用户协议",
     andWord: "与",
     privacyLink: "隐私政策",
+    crisisResources: "心理健康危机资源", crisisResourcesSub: "危机热线，随时可用",
     deleteAccount: "删除账号", deleteAccountSub: "永久删除你的所有数据",
     deleteAccountTitle: "确认删除账号",
     deleteAccountWarn: "这将永久删除你所有的帖子、消息、评论和账号记录，且无法撤销。",
@@ -144,6 +145,7 @@ const STR = {
     noComments: "No replies yet — be the first 🌿",
     addImage: "Add photo",
     imageTooLarge: "Image too large (max 2 MB) — please try a smaller one 🌿",
+    crisisResources: "Mental health crisis resources", crisisResourcesSub: "Crisis lines, always available",
     agreeAge: "I am 17 years of age or older",
     agreeTerms: "I have read and agree to the",
     termsLink: "Terms of Service",
@@ -2590,8 +2592,28 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
       )}
       <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub}
         onClick={() => setShowGuard(true)} />
+      <SettingRow icon={PhoneCall} label={t.crisisResources} sub={t.crisisResourcesSub}
+        onClick={() => window.open("/support", "_blank", "noopener")} />
       <SettingRow icon={Trash2} label={t.deleteAccount} sub={t.deleteAccountSub} danger
         onClick={() => setShowDeleteAccount(true)} />
+
+      {/* Footer links */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 16,
+        padding: "12px 16px 4px", flexWrap: "wrap" }}>
+        {[
+          { label: lang === "zh" ? "隐私政策" : "Privacy Policy", href: "/privacy" },
+          { label: lang === "zh" ? "用户协议" : "Terms of Service", href: "/terms" },
+          { label: lang === "zh" ? "帮助与支持" : "Support", href: "/support" },
+        ].map(({ label, href }) => (
+          <a key={href} href={href} target="_blank" rel="noopener"
+            style={{ fontSize: 11.5, color: C.plumSoft, textDecoration: "underline" }}>
+            {label}
+          </a>
+        ))}
+      </div>
+      <div style={{ textAlign: "center", fontSize: 11, color: C.line, paddingBottom: 8 }}>
+        Galene v1.0
+      </div>
 
       {showPinSetup && (
         <PinSetupModal lang={lang}

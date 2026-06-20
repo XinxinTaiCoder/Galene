@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "";
@@ -17,6 +17,13 @@ const S = {
     background: bg, color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500 }),
   btnGhost: { padding: "8px 18px", borderRadius: 10, border: "1px solid #EBDDD2",
     background: "#fff", color: "#8C7480", fontSize: 13, cursor: "pointer" },
+  tab: (active) => ({
+    padding: "8px 18px", borderRadius: 999, border: "none", cursor: "pointer",
+    fontWeight: active ? 600 : 400, fontSize: 13,
+    background: active ? "#4A2F3D" : "#fff",
+    color: active ? "#fff" : "#8C7480",
+    border: active ? "none" : "1px solid #EBDDD2",
+  }),
 };
 
 const TYPE_LABEL = { user: "举报用户", post: "举报帖子", message: "举报消息" };
@@ -26,11 +33,14 @@ export default function AdminPage() {
   const [pw, setPw] = useState("");
   const [authed, setAuthed] = useState(false);
   const [pwError, setPwError] = useState(false);
+  const [activeTab, setActiveTab] = useState("open"); // "open" | "reviewed"
   const [reports, setReports] = useState([]);
+  const [reviewedReports, setReviewedReports] = useState([]);
   const [profiles, setProfiles] = useState({});   // id → { nickname, avatar, banned }
   const [contents, setContents] = useState({});   // target_id → body string
+  const [authorIds, setAuthorIds] = useState({}); // target_id → author_id (for post/message)
   const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState("");
+  const [statusMsg, setStatusMsg] = useState({ text: "", ok: true });
 
   const login = () => {
     if (pw === ADMIN_PW && ADMIN_PW !== "") {
@@ -40,55 +50,61 @@ export default function AdminPage() {
     }
   };
 
+  const enrichReports = useCallback(async (rows) => {
+    const userTargetIds = [...new Set(rows.filter((r) => r.target_type === "user").map((r) => r.target_id))];
+    const postIds = [...new Set(rows.filter((r) => r.target_type === "post").map((r) => r.target_id))];
+    const msgIds = [...new Set(rows.filter((r) => r.target_type === "message").map((r) => r.target_id))];
+    const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
+
+    const allProfileIds = [...new Set([...userTargetIds, ...reporterIds])];
+    if (allProfileIds.length > 0) {
+      const { data: pData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", allProfileIds);
+      setProfiles((prev) => {
+        const map = { ...prev };
+        (pData || []).forEach((p) => { map[p.id] = p; });
+        return map;
+      });
+    }
+    if (postIds.length > 0) {
+      const { data: postData } = await supabase.from("posts").select("id, body, author_id").in("id", postIds);
+      setContents((prev) => { const m = { ...prev }; (postData || []).forEach((p) => { m[p.id] = p.body; }); return m; });
+      setAuthorIds((prev) => { const m = { ...prev }; (postData || []).forEach((p) => { m[p.id] = p.author_id; }); return m; });
+      // Also fetch post authors' profiles
+      const pAuthors = [...new Set((postData || []).map((p) => p.author_id).filter(Boolean))];
+      if (pAuthors.length > 0) {
+        const { data: apData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", pAuthors);
+        setProfiles((prev) => { const m = { ...prev }; (apData || []).forEach((p) => { m[p.id] = p; }); return m; });
+      }
+    }
+    if (msgIds.length > 0) {
+      const { data: msgData } = await supabase.from("messages").select("id, body, author_id").in("id", msgIds);
+      setContents((prev) => { const m = { ...prev }; (msgData || []).forEach((msg) => { m[msg.id] = msg.body; }); return m; });
+      setAuthorIds((prev) => { const m = { ...prev }; (msgData || []).forEach((msg) => { m[msg.id] = msg.author_id; }); return m; });
+      const mAuthors = [...new Set((msgData || []).map((m) => m.author_id).filter(Boolean))];
+      if (mAuthors.length > 0) {
+        const { data: maData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", mAuthors);
+        setProfiles((prev) => { const m = { ...prev }; (maData || []).forEach((p) => { m[p.id] = p; }); return m; });
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!authed) return;
     const load = async () => {
       setLoading(true);
       try {
-        const { data: rData, error } = await supabase
-          .from("reports")
-          .select("*")
-          .eq("status", "open")
+        const { data: open, error: e1 } = await supabase
+          .from("reports").select("*").eq("status", "open")
           .order("created_at", { ascending: false });
-        if (error) throw error;
-        const rows = rData || [];
-        setReports(rows);
-
-        // Fetch user profiles
-        const userIds = [...new Set(
-          rows.filter((r) => r.target_type === "user").map((r) => r.target_id)
-        )];
-        if (userIds.length > 0) {
-          const { data: pData } = await supabase
-            .from("profiles").select("id, nickname, avatar, banned").in("id", userIds);
-          const map = {};
-          (pData || []).forEach((p) => { map[p.id] = p; });
-          setProfiles(map);
-        }
-
-        // Fetch post bodies
-        const postIds = [...new Set(
-          rows.filter((r) => r.target_type === "post").map((r) => r.target_id)
-        )];
-        if (postIds.length > 0) {
-          const { data: postData } = await supabase
-            .from("posts").select("id, body").in("id", postIds);
-          const map = {};
-          (postData || []).forEach((p) => { map[p.id] = p.body; });
-          setContents((prev) => ({ ...prev, ...map }));
-        }
-
-        // Fetch message bodies
-        const msgIds = [...new Set(
-          rows.filter((r) => r.target_type === "message").map((r) => r.target_id)
-        )];
-        if (msgIds.length > 0) {
-          const { data: msgData } = await supabase
-            .from("messages").select("id, body").in("id", msgIds);
-          const map = {};
-          (msgData || []).forEach((m) => { map[m.id] = m.body; });
-          setContents((prev) => ({ ...prev, ...map }));
-        }
+        if (e1) throw e1;
+        const { data: reviewed } = await supabase
+          .from("reports").select("*").eq("status", "reviewed")
+          .order("created_at", { ascending: false }).limit(50);
+        const openRows = open || [];
+        const reviewedRows = reviewed || [];
+        setReports(openRows);
+        setReviewedReports(reviewedRows);
+        await enrichReports([...openRows, ...reviewedRows]);
       } catch (err) {
         console.error("Admin load error:", err?.message, err?.code, err?.details, err?.hint, err);
       } finally {
@@ -96,83 +112,73 @@ export default function AdminPage() {
       }
     };
     load();
-  }, [authed]);
+  }, [authed, enrichReports]);
 
-  const flash = (msg) => { setStatusMsg(msg); setTimeout(() => setStatusMsg(""), 3000); };
-
-  const closeReport = (reportId) =>
-    setReports((prev) => prev.filter((r) => r.id !== reportId));
+  const flash = (text, ok = true) => { setStatusMsg({ text, ok }); setTimeout(() => setStatusMsg({ text: "", ok: true }), 3000); };
+  const removeOpen = (reportId) => setReports((prev) => prev.filter((r) => r.id !== reportId));
 
   const markReviewed = async (reportId) => {
-    const { error } = await supabase
-      .from("reports").update({ status: "reviewed" }).eq("id", reportId);
+    const { error } = await supabase.from("reports").update({ status: "reviewed" }).eq("id", reportId);
     if (error) throw error;
   };
 
   const banUser = async (targetId, reportId) => {
     try {
-      const { error } = await supabase
-        .from("profiles").update({ banned: true }).eq("id", targetId);
+      const { error } = await supabase.from("profiles").update({ banned: true }).eq("id", targetId);
       if (error) throw error;
-      await markReviewed(reportId);
+      if (reportId) await markReviewed(reportId);
       setProfiles((prev) => ({ ...prev, [targetId]: { ...prev[targetId], banned: true } }));
-      closeReport(reportId);
-      flash("✅ 用户已封禁，举报已关闭");
+      if (reportId) removeOpen(reportId);
+      flash("✅ 用户已封禁");
     } catch (err) {
-      console.error("Ban error:", err?.message, err?.code, err?.details, err?.hint, err);
-      flash("❌ 操作失败，请查看控制台");
+      console.error("Ban error:", err?.message); flash("❌ 操作失败", false);
     }
   };
 
   const unbanUser = async (targetId) => {
     try {
-      const { error } = await supabase
-        .from("profiles").update({ banned: false }).eq("id", targetId);
+      const { error } = await supabase.from("profiles").update({ banned: false }).eq("id", targetId);
       if (error) throw error;
       setProfiles((prev) => ({ ...prev, [targetId]: { ...prev[targetId], banned: false } }));
       flash("✅ 已解除封禁");
     } catch (err) {
-      console.error("Unban error:", err?.message, err?.code, err?.details, err?.hint, err);
-      flash("❌ 操作失败，请查看控制台");
+      console.error("Unban error:", err?.message); flash("❌ 操作失败", false);
     }
   };
 
-  const hidePost = async (targetId, reportId) => {
+  const hidePost = async (targetId, reportId, alsobanAuthor) => {
     try {
-      const { error } = await supabase
-        .from("posts").update({ hidden: true }).eq("id", targetId);
+      const { error } = await supabase.from("posts").update({ hidden: true }).eq("id", targetId);
       if (error) throw error;
+      if (alsobanAuthor && authorIds[targetId]) await supabase.from("profiles").update({ banned: true }).eq("id", authorIds[targetId]);
       await markReviewed(reportId);
-      closeReport(reportId);
-      flash("✅ 帖子已隐藏，举报已关闭");
+      removeOpen(reportId);
+      flash(alsobanAuthor ? "✅ 帖子已隐藏，作者已封禁" : "✅ 帖子已隐藏");
     } catch (err) {
-      console.error("Hide post error:", err?.message, err?.code, err?.details, err?.hint, err);
-      flash("❌ 操作失败，请查看控制台");
+      console.error("Hide post error:", err?.message); flash("❌ 操作失败", false);
     }
   };
 
-  const hideMessage = async (targetId, reportId) => {
+  const hideMessage = async (targetId, reportId, alsobanAuthor) => {
     try {
-      const { error } = await supabase
-        .from("messages").update({ hidden: true }).eq("id", targetId);
+      const { error } = await supabase.from("messages").update({ hidden: true }).eq("id", targetId);
       if (error) throw error;
+      if (alsobanAuthor && authorIds[targetId]) await supabase.from("profiles").update({ banned: true }).eq("id", authorIds[targetId]);
       await markReviewed(reportId);
-      closeReport(reportId);
-      flash("✅ 消息已隐藏，举报已关闭");
+      removeOpen(reportId);
+      flash(alsobanAuthor ? "✅ 消息已隐藏，作者已封禁" : "✅ 消息已隐藏");
     } catch (err) {
-      console.error("Hide message error:", err?.message, err?.code, err?.details, err?.hint, err);
-      flash("❌ 操作失败，请查看控制台");
+      console.error("Hide message error:", err?.message); flash("❌ 操作失败", false);
     }
   };
 
   const ignoreReport = async (reportId) => {
     try {
       await markReviewed(reportId);
-      closeReport(reportId);
+      removeOpen(reportId);
       flash("已忽略该举报");
     } catch (err) {
-      console.error("Ignore error:", err?.message, err?.code, err?.details, err?.hint, err);
-      flash("❌ 操作失败，请查看控制台");
+      console.error("Ignore error:", err?.message); flash("❌ 操作失败", false);
     }
   };
 
@@ -203,112 +209,145 @@ export default function AdminPage() {
     );
   }
 
+  const displayRows = activeTab === "open" ? reports : reviewedReports;
+
   return (
     <div style={S.wrap}>
       <div style={S.h1}>🛡 Galene Admin</div>
-      <div style={S.sub}>开放举报 · 仅管理员可见</div>
+      <div style={{ ...S.sub, marginBottom: 16 }}>
+        待处理 <strong style={{ color: "#C9755A" }}>{reports.length}</strong> 条 ·
+        已处理 <strong style={{ color: "#7E9484" }}>{reviewedReports.length}</strong> 条（最近 50 条）
+      </div>
 
-      {statusMsg && (
-        <div style={{ marginBottom: 16, padding: "10px 16px", borderRadius: 10,
-          background: "#F0FDF4", border: "1px solid #A7F3D0", fontSize: 13, color: "#065F46" }}>
-          {statusMsg}
+      {statusMsg.text && (
+        <div style={{ marginBottom: 16, padding: "10px 16px", borderRadius: 10, fontSize: 13,
+          background: statusMsg.ok ? "#F0FDF4" : "#FFF0EC",
+          border: `1px solid ${statusMsg.ok ? "#A7F3D0" : "#F5C6C0"}`,
+          color: statusMsg.ok ? "#065F46" : "#C9755A" }}>
+          {statusMsg.text}
         </div>
       )}
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <button style={S.tab(activeTab === "open")} onClick={() => setActiveTab("open")}>
+          待处理 {reports.length > 0 && `(${reports.length})`}
+        </button>
+        <button style={S.tab(activeTab === "reviewed")} onClick={() => setActiveTab("reviewed")}>
+          已处理
+        </button>
+      </div>
+
       {loading ? (
         <div style={{ color: "#8C7480", fontSize: 14 }}>载入中…</div>
-      ) : reports.length === 0 ? (
+      ) : displayRows.length === 0 ? (
         <div style={{ ...S.card, textAlign: "center", color: "#8C7480", fontSize: 14, padding: 40 }}>
-          🌿 没有待处理的举报
+          {activeTab === "open" ? "🌿 没有待处理的举报" : "暂无已处理记录"}
         </div>
       ) : (
-        reports.map((r) => {
-          const targetProfile = r.target_type === "user" ? profiles[r.target_id] : null;
+        displayRows.map((r) => {
+          const isUserReport = r.target_type === "user";
+          const targetProfile = isUserReport ? profiles[r.target_id] : null;
+          const contentAuthorId = authorIds[r.target_id];
+          const contentAuthor = contentAuthorId ? profiles[contentAuthorId] : null;
           const body = contents[r.target_id];
+          const reporter = profiles[r.reporter_id];
+          const isOpen = activeTab === "open";
           return (
             <div key={r.id} style={S.card}>
-              {/* Header row */}
               <div style={{ display: "flex", justifyContent: "space-between",
                 alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <span style={S.pill(TYPE_PILL[r.target_type] || "#8C7480")}>
                     {TYPE_LABEL[r.target_type] || r.target_type}
                   </span>
-                  {targetProfile?.banned && (
-                    <span style={S.pill("#6B7280")}>已封禁</span>
-                  )}
+                  {!isOpen && <span style={S.pill("#7E9484")}>已处理</span>}
+                  {targetProfile?.banned && <span style={S.pill("#6B7280")}>已封禁</span>}
+                  {contentAuthor?.banned && <span style={S.pill("#6B7280")}>作者已封禁</span>}
                 </div>
                 <div style={{ fontSize: 11, color: "#8C7480", flexShrink: 0, marginLeft: 8 }}>
                   {new Date(r.created_at).toLocaleString("zh-CN")}
                 </div>
               </div>
 
-              {/* User target info */}
+              {/* User target */}
               {targetProfile && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10,
                   background: "#FBF3EC", borderRadius: 10, padding: "10px 12px" }}>
                   <span style={{ fontSize: 22 }}>{targetProfile.avatar || "🌿"}</span>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, color: "#4A2F3D", fontWeight: 500 }}>
-                      {targetProfile.nickname || "匿名"}
+                      {targetProfile.nickname || "匿名"}{targetProfile.banned ? " 🔴" : ""}
                     </div>
-                    <div style={{ fontSize: 11, color: "#8C7480" }}>
-                      ID: {r.target_id.slice(0, 8)}…
-                    </div>
+                    <div style={{ fontSize: 11, color: "#8C7480" }}>ID: {r.target_id.slice(0, 12)}…</div>
                   </div>
                 </div>
               )}
 
-              {/* Post / message content preview */}
+              {/* Post / message content */}
               {(r.target_type === "post" || r.target_type === "message") && (
-                <div style={{ marginBottom: 10, background: "#FBF3EC", borderRadius: 10,
-                  padding: "10px 12px" }}>
+                <div style={{ marginBottom: 10, background: "#FBF3EC", borderRadius: 10, padding: "10px 12px" }}>
                   <div style={{ fontSize: 11, color: "#8C7480", marginBottom: 4 }}>
                     {r.target_type === "post" ? "帖子内容" : "消息内容"}
                   </div>
-                  <div style={{ fontSize: 13.5, color: "#4A2F3D", lineHeight: 1.6,
-                    wordBreak: "break-all" }}>
-                    {body ?? <span style={{ color: "#8C7480" }}>（内容已删除或无法加载）</span>}
+                  <div style={{ fontSize: 13.5, color: "#4A2F3D", lineHeight: 1.6, wordBreak: "break-all" }}>
+                    {body ?? <span style={{ color: "#8C7480" }}>（内容已删除或不可用）</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: "#8C7480", marginTop: 6 }}>
-                    ID: {r.target_id?.slice(0, 12)}…
+                  {contentAuthor && (
+                    <div style={{ fontSize: 11, color: "#8C7480", marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
+                      <span>作者：{contentAuthor.avatar} {contentAuthor.nickname || "匿名"}</span>
+                      {contentAuthor.banned && <span style={S.pill("#6B7280")}>已封禁</span>}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "#8C7480", marginTop: 2 }}>
+                    内容 ID: {r.target_id?.slice(0, 12)}…
                   </div>
                 </div>
               )}
 
-              {/* Report reason */}
+              {/* Report reason + reporter */}
               <div style={{ fontSize: 13, color: "#4A2F3D", marginBottom: 14,
                 background: "#FDF1E8", borderRadius: 8, padding: "8px 12px" }}>
                 <span style={{ color: "#8C7480", fontSize: 11 }}>举报原因：</span>
                 {r.reason || "（未填写）"}
+                {r.note && <div style={{ marginTop: 4, fontSize: 12, color: "#8C7480" }}>补充：{r.note}</div>}
+                {reporter && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: "#8C7480" }}>
+                    举报人：{reporter.avatar} {reporter.nickname || "匿名"} · ID {r.reporter_id?.slice(0, 8)}…
+                  </div>
+                )}
               </div>
 
-              {/* Action buttons */}
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {r.target_type === "user" && !targetProfile?.banned && (
-                  <button onClick={() => banUser(r.target_id, r.id)} style={S.btn("#C9755A")}>
-                    封禁该用户
-                  </button>
-                )}
-                {r.target_type === "user" && targetProfile?.banned && (
-                  <button onClick={() => unbanUser(r.target_id)} style={S.btn("#7E9484")}>
-                    解除封禁
-                  </button>
-                )}
-                {r.target_type === "post" && (
-                  <button onClick={() => hidePost(r.target_id, r.id)} style={S.btn("#C9755A")}>
-                    隐藏帖子
-                  </button>
-                )}
-                {r.target_type === "message" && (
-                  <button onClick={() => hideMessage(r.target_id, r.id)} style={S.btn("#C9755A")}>
-                    隐藏消息
-                  </button>
-                )}
-                <button onClick={() => ignoreReport(r.id)} style={S.btnGhost}>
-                  忽略
-                </button>
-              </div>
+              {isOpen && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {r.target_type === "user" && !targetProfile?.banned && (
+                    <button onClick={() => banUser(r.target_id, r.id)} style={S.btn("#C9755A")}>封禁用户</button>
+                  )}
+                  {r.target_type === "user" && targetProfile?.banned && (
+                    <button onClick={() => unbanUser(r.target_id)} style={S.btn("#7E9484")}>解除封禁</button>
+                  )}
+                  {r.target_type === "post" && (
+                    <>
+                      <button onClick={() => hidePost(r.target_id, r.id, false)} style={S.btn("#C9755A")}>隐藏帖子</button>
+                      {contentAuthor && !contentAuthor.banned && (
+                        <button onClick={() => hidePost(r.target_id, r.id, true)} style={S.btn("#8B2020")}>
+                          隐藏 + 封禁作者
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {r.target_type === "message" && (
+                    <>
+                      <button onClick={() => hideMessage(r.target_id, r.id, false)} style={S.btn("#C9755A")}>隐藏消息</button>
+                      {contentAuthor && !contentAuthor.banned && (
+                        <button onClick={() => hideMessage(r.target_id, r.id, true)} style={S.btn("#8B2020")}>
+                          隐藏 + 封禁作者
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button onClick={() => ignoreReport(r.id)} style={S.btnGhost}>忽略</button>
+                </div>
+              )}
             </div>
           );
         })
