@@ -20,35 +20,18 @@
 }
 
 body {
-  background: var(--background);
+  background: #FBF3EC;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
 }
 
-/* ── App shell responsive layout ─────────────────────────────
-   Desktop: centered phone-frame mockup (390 × 760).
-   Mobile (≤ 500 px wide or ≤ 820 px tall): fill the full screen,
-   strip the frame decoration, and use dynamic viewport height so
-   the browser's own chrome never covers bottom content.
-──────────────────────────────────────────────────────────────*/
 .galene-outer {
-  min-height: 100vh;      /* fallback for browsers without dvh */
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
-@media screen and (max-width: 500px), screen and (max-height: 820px) {
-  .galene-outer {
-    padding: 0 !important;
-    align-items: stretch !important;
-    background: #FBF3EC !important;
-  }
-  .galene-shell {
-    width: 100% !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    border: none !important;
-    /* 100dvh = visible viewport (shrinks/grows with browser UI) */
-    height: 100vh !important;   /* fallback */
-    height: 100dvh !important;  /* overrides when supported */
-  }
+.galene-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
