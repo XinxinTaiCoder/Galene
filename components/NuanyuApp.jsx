@@ -5,7 +5,7 @@ import { detectCrisis, filterAbuse } from "@/lib/safety";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
-  Image as ImageIcon, Bell,
+  Image as ImageIcon, Bell, Trash2,
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -80,6 +80,18 @@ const STR = {
     noComments: "还没有回应，来说第一句吧 🌿",
     addImage: "添加图片",
     imageTooLarge: "图片太大了（上限 2MB），换一张小一点的吧 🌿",
+    agreeAge: "我已年满 17 岁",
+    agreeTerms: "我已阅读并同意",
+    termsLink: "用户协议",
+    andWord: "与",
+    privacyLink: "隐私政策",
+    deleteAccount: "删除账号", deleteAccountSub: "永久删除你的所有数据",
+    deleteAccountTitle: "确认删除账号",
+    deleteAccountWarn: "这将永久删除你所有的帖子、消息、评论和账号记录，且无法撤销。",
+    deleteAccountConfirm: "我确认要删除",
+    deleteAccountCancel: "取消",
+    deleteAccountDeleting: "正在删除…",
+    deleteAccountError: "删除失败，请稍后重试",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -132,6 +144,18 @@ const STR = {
     noComments: "No replies yet — be the first 🌿",
     addImage: "Add photo",
     imageTooLarge: "Image too large (max 2 MB) — please try a smaller one 🌿",
+    agreeAge: "I am 17 years of age or older",
+    agreeTerms: "I have read and agree to the",
+    termsLink: "Terms of Service",
+    andWord: "and",
+    privacyLink: "Privacy Policy",
+    deleteAccount: "Delete Account", deleteAccountSub: "Permanently delete all your data",
+    deleteAccountTitle: "Delete your account?",
+    deleteAccountWarn: "This will permanently delete all your posts, messages, comments, and account data. This cannot be undone.",
+    deleteAccountConfirm: "Yes, delete everything",
+    deleteAccountCancel: "Cancel",
+    deleteAccountDeleting: "Deleting…",
+    deleteAccountError: "Deletion failed — please try again later",
   },
 };
 
@@ -495,6 +519,8 @@ function Onboarding({ lang, setLang, onDone, saving }) {
   const [pinFirst, setPinFirst] = useState("");
   const [pinEntry, setPinEntry] = useState("");
   const [pinError, setPinError] = useState("");
+  const [agreedAge, setAgreedAge] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
 
   const toggle = (arr, set, id) =>
     set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
@@ -536,9 +562,30 @@ function Onboarding({ lang, setLang, onDone, saving }) {
           <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 30, fontWeight: 700,
             color: C.plum, marginTop: 18 }}>{t.appName}</div>
           <div style={{ color: C.plumSoft, fontSize: 14, marginTop: 12, lineHeight: 1.6 }}>{t.tagline}</div>
-          <button onClick={() => setStep(1)}
-            style={{ marginTop: 40, width: "100%", padding: 15, borderRadius: 16, border: "none",
-              background: C.terracotta, color: "#fff", fontSize: 15.5, cursor: "pointer",
+          <div style={{ marginTop: 32, width: "100%", textAlign: "left", display: "flex", flexDirection: "column", gap: 14 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={agreedAge} onChange={(e) => setAgreedAge(e.target.checked)}
+                style={{ marginTop: 2, accentColor: C.terracotta, width: 16, height: 16, flexShrink: 0 }} />
+              <span style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>{t.agreeAge}</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)}
+                style={{ marginTop: 2, accentColor: C.terracotta, width: 16, height: 16, flexShrink: 0 }} />
+              <span style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>
+                {t.agreeTerms}{" "}
+                <a href="/terms" target="_blank" rel="noopener"
+                  style={{ color: C.terracotta, textDecoration: "underline" }}>{t.termsLink}</a>
+                {" "}{t.andWord}{" "}
+                <a href="/privacy" target="_blank" rel="noopener"
+                  style={{ color: C.terracotta, textDecoration: "underline" }}>{t.privacyLink}</a>
+              </span>
+            </label>
+          </div>
+          <button onClick={() => setStep(1)} disabled={!agreedAge || !agreedTerms}
+            style={{ marginTop: 28, width: "100%", padding: 15, borderRadius: 16, border: "none",
+              background: agreedAge && agreedTerms ? C.terracotta : C.terracottaSoft,
+              color: "#fff", fontSize: 15.5,
+              cursor: agreedAge && agreedTerms ? "pointer" : "default",
               fontFamily: "'Noto Serif SC',serif" }}>{t.getStarted}</button>
         </div>
       )}
@@ -712,6 +759,70 @@ function CrisisModal({ lang, onClose }) {
             fontFamily: "'Noto Serif SC',serif" }}>
           {isZh ? "我知道了" : "Got it"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteAccountModal({ lang, userId, onClose, onDeleted }) {
+  const t = STR[lang];
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("No session");
+      const res = await fetch("/api/delete-account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed");
+      }
+      await supabase.auth.signOut();
+      onDeleted();
+    } catch (err) {
+      console.error("Delete account error:", err?.message);
+      setError(t.deleteAccountError);
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, zIndex: 300 }}>
+      <div style={{ background: C.card, borderRadius: 22, padding: 24, width: "100%",
+        border: `1px solid ${C.terracottaSoft}`,
+        boxShadow: "0 8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ fontSize: 16, fontFamily: "'Noto Serif SC',serif",
+          color: C.plum, fontWeight: 700, marginBottom: 12 }}>{t.deleteAccountTitle}</div>
+        <div style={{ fontSize: 13.5, color: C.plumSoft, lineHeight: 1.7, marginBottom: 20 }}>
+          {t.deleteAccountWarn}
+        </div>
+        {error && (
+          <div style={{ fontSize: 12.5, color: C.terracotta, marginBottom: 14,
+            padding: "8px 12px", background: "#FFF0EC", borderRadius: 10 }}>{error}</div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} disabled={deleting}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 14,
+              border: `1px solid ${C.line}`, background: "transparent",
+              color: C.plumSoft, fontSize: 14, cursor: "pointer" }}>
+            {t.deleteAccountCancel}
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 14, border: "none",
+              background: deleting ? C.terracottaSoft : "#C0392B",
+              color: "#fff", fontSize: 14, cursor: deleting ? "default" : "pointer" }}>
+            {deleting ? t.deleteAccountDeleting : t.deleteAccountConfirm}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2357,6 +2468,7 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [totalHugs, setTotalHugs] = useState(null);
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
@@ -2478,6 +2590,8 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
       )}
       <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub}
         onClick={() => setShowGuard(true)} />
+      <SettingRow icon={Trash2} label={t.deleteAccount} sub={t.deleteAccountSub} danger
+        onClick={() => setShowDeleteAccount(true)} />
 
       {showPinSetup && (
         <PinSetupModal lang={lang}
@@ -2491,6 +2605,11 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
       )}
       {showGuard && (
         <GuardSettings lang={lang} userId={userId} onClose={() => setShowGuard(false)} />
+      )}
+      {showDeleteAccount && (
+        <DeleteAccountModal lang={lang} userId={userId}
+          onClose={() => setShowDeleteAccount(false)}
+          onDeleted={() => window.location.reload()} />
       )}
       {showNotifs && (
         <NotificationsPage lang={lang} userId={userId}
