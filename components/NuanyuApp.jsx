@@ -3148,11 +3148,13 @@ export default function NuanyuApp() {
 
   const shell = (children) => (
     <div className="galene-outer"
-      style={{ display: "flex", justifyContent: "center", alignItems: "center",
-        background: "#EFE6DD", padding: 20, fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }}>
+      style={{ display: "flex", justifyContent: "center", alignItems: "flex-start",
+        minHeight: "100dvh", background: C.bg,
+        fontFamily: "'Noto Sans SC',-apple-system,sans-serif" }}>
       <div className="galene-shell"
-        style={{ width: 390, height: 760, borderRadius: 38, overflow: "hidden", position: "relative",
-          background: C.bg, boxShadow: "0 30px 70px rgba(74,47,61,.28)", border: "10px solid #2A1C24" }}>
+        style={{ width: "100%", maxWidth: 480, minHeight: "100dvh", overflow: "hidden",
+          position: "relative", background: C.bg,
+          boxShadow: "0 0 40px rgba(74,47,61,.10)" }}>
         {children}
       </div>
     </div>
