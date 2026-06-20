@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { detectCrisis, filterAbuse } from "@/lib/safety";
+import { registerPushNotifications, unregisterPushToken } from "@/lib/pushNotifications";
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
@@ -786,6 +787,7 @@ function DeleteAccountModal({ lang, userId, onClose, onDeleted }) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Failed");
       }
+      await unregisterPushToken(userId);
       await supabase.auth.signOut();
       onDeleted();
     } catch (err) {
@@ -3025,6 +3027,7 @@ export default function NuanyuApp() {
           currentUser = data.user;
         }
         setUserId(currentUser.id);
+        registerPushNotifications(currentUser.id);
 
         const { data: profileData } = await supabase
           .from("profiles")
