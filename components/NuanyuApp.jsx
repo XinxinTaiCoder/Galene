@@ -3130,10 +3130,15 @@ export default function NuanyuApp() {
   }, []);
 
   const handleOnboardingDone = async (data) => {
-    if (!userId) return;
+    if (!userId) {
+      // Auth not ready (e.g. anonymous sign-in failed) — proceed locally so buttons aren't dead
+      console.warn("handleOnboardingDone: userId is null, skipping DB write");
+      setProfile(data);
+      return;
+    }
     setSaving(true);
     try {
-      const { error } = await supabase.from("profiles").insert({
+      const { error } = await supabase.from("profiles").upsert({
         id: userId,
         avatar: data.avatar,
         nickname: data.nickname,
@@ -3141,11 +3146,11 @@ export default function NuanyuApp() {
         strengths: data.strengths,
       });
       if (error) throw error;
-      setProfile(data);
     } catch (err) {
-      console.error("Profile save error:", err);
+      console.error("Profile save error:", err?.message, err?.code, err?.details, err?.hint, err);
     } finally {
       setSaving(false);
+      setProfile(data); // always exit onboarding even if DB write failed
     }
   };
 
