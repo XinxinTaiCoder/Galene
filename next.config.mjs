@@ -20,8 +20,10 @@ const nextConfig = {
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://translation.googleapis.com",
               // Supabase Storage images
               "img-src 'self' data: blob: https://*.supabase.co",
-              // Inline styles used throughout the app
-              "style-src 'self' 'unsafe-inline'",
+              // Inline styles + Google Fonts CSS
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              // Google Fonts files
+              "font-src 'self' https://fonts.gstatic.com",
               // Next.js inline hydration scripts require 'unsafe-inline' in all envs
               process.env.NODE_ENV === "development"
                 ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
