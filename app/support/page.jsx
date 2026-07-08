@@ -11,7 +11,7 @@ export default function SupportPage() {
       <section>
         <h2>联系我们</h2>
         <p>如有任何问题、反馈或账号相关事宜，请发送邮件至：<br />
-          <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a>
+          <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a>
         </p>
         <p>我们通常在 1-3 个工作日内回复。</p>
 
@@ -28,11 +28,11 @@ export default function SupportPage() {
 
         <h2>删除账号</h2>
         <p>你可以随时在 App 内「我的 → 删除账号」中永久删除你的账号和所有数据。</p>
-        <p>如果你无法访问 App，请发邮件至 <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a> 说明情况，我们将手动处理。</p>
+        <p>如果你无法访问 App，请发邮件至 <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a> 说明情况，我们将手动处理。</p>
 
         <h2>举报问题内容</h2>
         <p>你可以直接在 App 内通过「Flag」图标举报违规帖子，或通过举报功能举报违规用户。我们通常在 24 小时内处理举报。</p>
-        <p>紧急情况（如威胁人身安全的内容）请同时发邮件至 <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a>，标题注明「紧急」。</p>
+        <p>紧急情况（如威胁人身安全的内容）请同时发邮件至 <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a>，标题注明「紧急」。</p>
 
         <h2>隐私与数据</h2>
         <p>
@@ -50,7 +50,7 @@ export default function SupportPage() {
       <section>
         <h2>Contact Us</h2>
         <p>For questions, feedback, or account issues, email us at:<br />
-          <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a>
+          <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a>
         </p>
         <p>We typically respond within 1-3 business days.</p>
 
@@ -67,11 +67,11 @@ export default function SupportPage() {
 
         <h2>Delete Your Account</h2>
         <p>You can permanently delete your account and all associated data at any time via <em>Me → Delete Account</em> in the App.</p>
-        <p>If you cannot access the App, email <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a> and we will handle it manually.</p>
+        <p>If you cannot access the App, email <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a> and we will handle it manually.</p>
 
         <h2>Report Harmful Content</h2>
         <p>Use the Flag icon on any post to report it, or use the Report button on any user profile. We typically review reports within 24 hours.</p>
-        <p>For urgent safety concerns, also email <a href="mailto:support@galene.app" style={{ color: "#C9755A" }}>support@galene.app</a> with "URGENT" in the subject line.</p>
+        <p>For urgent safety concerns, also email <a href="mailto:galene_support@protonmail.com" style={{ color: "#C9755A" }}>galene_support@protonmail.com</a> with "URGENT" in the subject line.</p>
 
         <h2>Privacy &amp; Data</h2>
         <p>

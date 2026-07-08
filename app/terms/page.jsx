@@ -54,7 +54,7 @@ export default function TermsPage() {
         <p>本协议受中华人民共和国法律管辖（涉及国际用户时，以适用法律为准）。</p>
 
         <h2>11. 联系我们</h2>
-        <p>如有任何疑问，请联系：<a href="mailto:support@galene.app">support@galene.app</a></p>
+        <p>如有任何疑问，请联系：<a href="mailto:galene_support@protonmail.com">galene_support@protonmail.com</a></p>
       </section>
 
       <hr style={{ margin: "56px 0", border: "none", borderTop: "1px solid #e8ddd5" }} />
@@ -108,7 +108,7 @@ export default function TermsPage() {
         <p>These Terms are governed by applicable law in the jurisdiction where the service operates.</p>
 
         <h2>11. Contact</h2>
-        <p>Questions? Email us: <a href="mailto:support@galene.app">support@galene.app</a></p>
+        <p>Questions? Email us: <a href="mailto:galene_support@protonmail.com">galene_support@protonmail.com</a></p>
       </section>
     </div>
   );
