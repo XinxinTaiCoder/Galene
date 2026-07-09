@@ -19,6 +19,8 @@ const C = {
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500&display=swap');`;
 
+const MISS_GALENE_ID = "00000000-0000-0000-0000-000000000001";
+
 const PIN_KEY = "galene_pin";
 const LANG_KEY = "galene_lang";
 const SEEN_GUIDELINES_KEY = "galene_seen_guidelines";
@@ -1243,7 +1245,7 @@ const COMPOSE_TAGS = {
   en: ["Today's fun", "Food", "Need to talk", "Cute meme", "Career", "Mood"],
 };
 
-function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, tag, onTagChange,
+function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, tags, onTagsChange,
   publishing, onPublish, imagePreview, onImageSelect, onImageClear, imageError }) {
   const t = STR[lang];
   const fileInputRef = useRef(null);
@@ -1287,13 +1289,16 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
         ))}
       </div>
       <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-        {COMPOSE_TAGS[lang].map((tg) => (
-          <button key={tg} onClick={() => onTagChange(tag === tg ? "" : tg)}
-            style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
-              border: `1px solid ${tag === tg ? C.terracotta : C.line}`,
-              background: tag === tg ? C.peach : "transparent",
-              color: tag === tg ? C.terracotta : C.plumSoft }}>{tg}</button>
-        ))}
+        {COMPOSE_TAGS[lang].map((tg) => {
+          const active = tags.includes(tg);
+          return (
+            <button key={tg} onClick={() => onTagsChange(active ? tags.filter(t => t !== tg) : [...tags, tg])}
+              style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+                border: `1px solid ${active ? C.terracotta : C.line}`,
+                background: active ? C.peach : "transparent",
+                color: active ? C.terracotta : C.plumSoft }}>{tg}</button>
+          );
+        })}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
         <button onClick={() => fileInputRef.current?.click()}
@@ -1317,25 +1322,45 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
 }
 
 // ── Comments ──────────────────────────────────────────────────
-function CommentItem({ comment, replies, lang, onReply, depth }) {
+function CommentItem({ comment, replies, lang, onReply, onDelete, userId, depth }) {
   const av = comment.profiles?.avatar || "🌿";
   const name = comment.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous");
+  const isMissGalene = comment.author_id === MISS_GALENE_ID;
+  const isOwn = comment.author_id === userId;
   return (
     <div style={{ marginLeft: depth * 18, marginBottom: 8 }}>
       <div style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
         <Avatar emoji={av} color={C.peach} size={22} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: C.plumSoft, marginBottom: 1 }}>{name}</div>
+          <div style={{ fontSize: 11, color: C.plumSoft, marginBottom: 1, display: "flex", alignItems: "center", gap: 5 }}>
+            {name}
+            {isMissGalene && (
+              <span style={{ fontSize: 10, color: "rgba(201,117,90,0.6)" }}>
+                {lang === "zh" ? "社群助手" : "Community Companion"}
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>{comment.body}</div>
-          <button onClick={() => onReply(comment)}
-            style={{ background: "none", border: "none", cursor: "pointer",
-              color: C.sage, fontSize: 11, padding: "2px 0", marginTop: 1 }}>
-            {lang === "zh" ? "回复" : "Reply"}
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 1 }}>
+            <button onClick={() => onReply(comment)}
+              style={{ background: "none", border: "none", cursor: "pointer",
+                color: C.sage, fontSize: 11, padding: "2px 0" }}>
+              {lang === "zh" ? "回复" : "Reply"}
+            </button>
+            {isOwn && (
+              <button onClick={() => onDelete(comment.id)}
+                style={{ background: "none", border: "none", cursor: "pointer",
+                  color: C.plumSoft, fontSize: 11, padding: "2px 0",
+                  display: "flex", alignItems: "center", gap: 2 }}>
+                <Trash2 size={11} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {replies.map((r) => (
-        <CommentItem key={r.id} comment={r} replies={[]} lang={lang} onReply={onReply} depth={depth + 1} />
+        <CommentItem key={r.id} comment={r} replies={[]} lang={lang} onReply={onReply}
+          onDelete={onDelete} userId={userId} depth={depth + 1} />
       ))}
     </div>
   );
@@ -1393,6 +1418,16 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpande
     }
   };
 
+  const deleteComment = async (commentId) => {
+    try {
+      const { error } = await supabase.from("comments").delete().eq("id", commentId).eq("author_id", userId);
+      if (error) throw error;
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (err) {
+      console.error("Delete comment error:", err?.message);
+    }
+  };
+
   const topLevel = comments.filter((c) => !c.parent_id);
   const repliesFor = (parentId) => comments.filter((c) => c.parent_id === parentId);
   const PREVIEW = 2;
@@ -1423,7 +1458,7 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpande
           {visibleTop.map((c) => (
             <CommentItem key={c.id} comment={c} replies={repliesFor(c.id)} lang={lang}
               onReply={(c) => { setReplyTo(c); setTimeout(() => inputRef.current?.focus(), 0); }}
-              depth={0} />
+              onDelete={deleteComment} userId={userId} depth={0} />
           ))}
         </>
       )}
@@ -1460,10 +1495,11 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpande
 }
 
 // ── Post Card ────────────────────────────────────────────────
-function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId, onTranslate, openComments }) {
+function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, timeAgo, onProfileClick, userId, onDelete, onTranslate, openComments }) {
   const author = post.profiles || {};
   const av = author.avatar || "🌿";
   const name = author.nickname || (lang === "zh" ? "匿名" : "anonymous");
+  const isMissGalene = post.author_id === MISS_GALENE_ID;
   const translateCb = useCallback(() => onTranslate(post.body), [onTranslate, post.body]);
   const lp = useLongPress(translateCb);
   return (
@@ -1476,15 +1512,22 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
           <Avatar emoji={av} color={C.peach} size={34} />
         </button>
         <div style={{ flex: 1 }}>
-          <div onClick={onProfileClick}
-            style={{ fontSize: 13.5, color: C.plum, fontWeight: 500,
-              cursor: onProfileClick ? "pointer" : "default", display: "inline-block" }}>{name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div onClick={onProfileClick}
+              style={{ fontSize: 13.5, color: C.plum, fontWeight: 500,
+                cursor: onProfileClick ? "pointer" : "default" }}>{name}</div>
+            {isMissGalene && (
+              <span style={{ fontSize: 11, color: "rgba(201,117,90,0.6)" }}>
+                {lang === "zh" ? "社群助手" : "Community Companion"}
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 11, color: C.plumSoft }}>{timeAgo(post.created_at)} · {t.anon}</div>
         </div>
-        {post.tag && (
-          <span style={{ fontSize: 11, color: C.sage, background: "#EEF3EF",
-            padding: "3px 9px", borderRadius: 999 }}>{post.tag}</span>
-        )}
+        {post.tag && post.tag.split(", ").map((tg) => (
+          <span key={tg} style={{ fontSize: 11, color: C.sage, background: "#EEF3EF",
+            padding: "3px 9px", borderRadius: 999 }}>{tg}</span>
+        ))}
       </div>
       <div {...lp} style={{ fontSize: 14.5, color: C.plum, lineHeight: 1.7, userSelect: "none" }}>{post.body}</div>
       {post.image_emoji && (
@@ -1498,6 +1541,13 @@ function PostCard({ post, lang, t, hugged, hugCount, onHug, onReport, reported, 
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <Reaction icon={Heart} label={t.hug} count={hugCount} active={hugged} onClick={onHug} />
+        {onDelete && (
+          <button onClick={onDelete}
+            style={{ border: "none", background: "none", color: C.plumSoft,
+              cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
+            <Trash2 size={14} />
+          </button>
+        )}
         {reported ? (
           <span style={{ marginLeft: "auto", fontSize: 12, color: C.sage }}>
             {lang === "zh" ? "已收到，我们会查看 🌿" : "Received, we'll review 🌿"}
@@ -1526,7 +1576,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
   const [showCrisis, setShowCrisis] = useState(true);
   const [composeText, setComposeText] = useState("");
   const [composeEmoji, setComposeEmoji] = useState("");
-  const [composeTag, setComposeTag] = useState("");
+  const [composeTags, setComposeTags] = useState([]);
   const [composeImage, setComposeImage] = useState(null);
   const [composeImagePreview, setComposeImagePreview] = useState(null);
   const [imageError, setImageError] = useState(null);
@@ -1728,6 +1778,16 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
     setImageError(null);
   };
 
+  const deletePost = async (postId) => {
+    try {
+      const { error } = await supabase.from("posts").delete().eq("id", postId).eq("author_id", userId);
+      if (error) throw error;
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (err) {
+      console.error("Delete post error:", err?.message);
+    }
+  };
+
   const publish = async () => {
     if (!composeText.trim() || !userId) return;
     if (profile.banned) { setBannedAlert(true); return; }
@@ -1746,7 +1806,8 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
       }
       const { data, error } = await supabase
         .from("posts")
-        .insert({ author_id: userId, body: composeText.trim(), tag: composeTag || null,
+        .insert({ author_id: userId, body: composeText.trim(),
+          tag: composeTags.length > 0 ? composeTags.join(", ") : null,
           image_emoji: composeEmoji || null, image_url: imageUrl, hidden: false })
         .select("*, profiles!author_id(nickname, avatar)")
         .single();
@@ -1754,7 +1815,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
       setPosts((prev) => [data, ...prev]);
       setHugCounts((prev) => ({ ...prev, [data.id]: 0 }));
       if (detectCrisis(data.body)) onCrisisDetected();
-      setComposeText(""); setComposeEmoji(""); setComposeTag("");
+      setComposeText(""); setComposeEmoji(""); setComposeTags([]);
       clearImage();
     } catch (err) {
       console.error("Publish error:", err?.message, err?.code, err?.details, err?.hint, err);
@@ -1787,7 +1848,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
         lang={lang} profile={profile}
         text={composeText} onTextChange={setComposeText}
         emoji={composeEmoji} onEmojiChange={setComposeEmoji}
-        tag={composeTag} onTagChange={setComposeTag}
+        tags={composeTags} onTagsChange={setComposeTags}
         publishing={publishing} onPublish={publish}
         imagePreview={composeImagePreview} onImageSelect={handleImageSelect}
         onImageClear={clearImage} imageError={imageError}
@@ -1818,6 +1879,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
             timeAgo={timeAgo}
             onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
             userId={userId}
+            onDelete={p.author_id === userId ? () => deletePost(p.id) : undefined}
             onTranslate={handleTranslate}
             openComments={p.id === openCommentsFor}
           />
@@ -2689,10 +2751,11 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
 
   const handleClick = async (notif) => {
     await markRead(notif);
-    if (notif.type === "post_hug" || notif.type === "comment") {
+    if (notif.type === "post_hug" || notif.type === "comment" ||
+        notif.type === "new_post_alert" || notif.type === "peer_nudge") {
       onClose();
       if (notif.ref_id) {
-        onNavigateToPost(notif.ref_id, notif.type === "comment");
+        onNavigateToPost(notif.ref_id, notif.type === "comment" || notif.type === "new_post_alert" || notif.type === "peer_nudge");
       } else {
         onNavigateToFeed();
       }
@@ -2722,15 +2785,19 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
   const describe = (n) => {
     const actor = n.actor?.nickname || (lang === "zh" ? "有人" : "Someone");
     if (lang === "zh") {
-      if (n.type === "post_hug")      return `${actor} 给你的帖子送了抱抱 🤗`;
-      if (n.type === "profile_hug")   return `${actor} 给你送了抱抱 🤗`;
-      if (n.type === "comment")       return `${actor} 评论了你的帖子`;
-      if (n.type === "message_reply") return `${actor} 在聊天室回复了你的消息`;
+      if (n.type === "post_hug")        return `${actor} 给你的帖子送了抱抱 🤗`;
+      if (n.type === "profile_hug")     return `${actor} 给你送了抱抱 🤗`;
+      if (n.type === "comment")         return `${actor} 评论了你的帖子`;
+      if (n.type === "message_reply")   return `${actor} 在聊天室回复了你的消息`;
+      if (n.type === "new_post_alert")  return "新帖子提醒：有用户发帖，Miss Galene 已自动回复 🌸 点击查看";
+      if (n.type === "peer_nudge")      return "有人刚刚分享了心里话，你愿意给 ta 一点温暖吗？🌸";
     } else {
-      if (n.type === "post_hug")      return `${actor} hugged your post 🤗`;
-      if (n.type === "profile_hug")   return `${actor} sent you a hug 🤗`;
-      if (n.type === "comment")       return `${actor} replied to your post`;
-      if (n.type === "message_reply") return `${actor} replied to your message in a room`;
+      if (n.type === "post_hug")        return `${actor} hugged your post 🤗`;
+      if (n.type === "profile_hug")     return `${actor} sent you a hug 🤗`;
+      if (n.type === "comment")         return `${actor} replied to your post`;
+      if (n.type === "message_reply")   return `${actor} replied to your message in a room`;
+      if (n.type === "new_post_alert")  return "New post alert: Miss Galene has auto-replied 🌸 Tap to view";
+      if (n.type === "peer_nudge")      return "Someone just shared something. Feel like offering a kind word? 🌸";
     }
     return n.type;
   };
@@ -2774,7 +2841,7 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
             <div style={{ width: 38, height: 38, borderRadius: 999, flexShrink: 0,
               background: C.peach, display: "flex", alignItems: "center",
               justifyContent: "center", fontSize: 20 }}>
-              {n.actor?.avatar || "🌿"}
+              {(n.type === "new_post_alert" || n.type === "peer_nudge") ? "🌸" : (n.actor?.avatar || "🌿")}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13.5, color: C.plum, lineHeight: 1.5 }}>{describe(n)}</div>
