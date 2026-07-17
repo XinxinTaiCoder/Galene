@@ -31,12 +31,21 @@ export async function POST(request) {
 
     const uid = user.id;
 
+    // Resolve the user's message ids up front — `.in()` needs a real array,
+    // it can't take a nested query builder (that throws synchronously).
+    const { data: ownMessages, error: ownMessagesError } = await supabaseAdmin
+      .from("messages").select("id").eq("author_id", uid);
+    if (ownMessagesError) {
+      console.error("Delete-account fetch messages error:", ownMessagesError.message);
+    }
+    const ownMessageIds = (ownMessages || []).map((m) => m.id);
+
     // Cascade delete in dependency order
     const steps = [
       () => supabaseAdmin.from("message_reactions").delete().eq("profile_id", uid),
-      () => supabaseAdmin.from("message_reactions").delete().in("message_id",
-        supabaseAdmin.from("messages").select("id").eq("author_id", uid)
-      ),
+      () => ownMessageIds.length
+        ? supabaseAdmin.from("message_reactions").delete().in("message_id", ownMessageIds)
+        : Promise.resolve({ error: null }),
       () => supabaseAdmin.from("notifications").delete().eq("recipient_id", uid),
       () => supabaseAdmin.from("notifications").delete().eq("actor_id", uid),
       () => supabaseAdmin.from("blocks").delete().eq("blocker_id", uid),
