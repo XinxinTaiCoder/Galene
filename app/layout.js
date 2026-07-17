@@ -14,12 +14,21 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Galene · 宁静之海",
   description: "A women-centered, gentle, safe corner",
+  appleWebApp: {
+    capable: true,
+    title: "Galene",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icon-192.png",
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#C9755A",
 };
 
 export default function RootLayout({ children }) {

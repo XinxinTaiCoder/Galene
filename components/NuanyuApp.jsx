@@ -96,6 +96,8 @@ const STR = {
     deleteAccountCancel: "取消",
     deleteAccountDeleting: "正在删除…",
     deleteAccountError: "删除失败，请稍后重试",
+    pushPrompt: "想在有人抱你或回复时收到提醒吗？开启通知 🌸",
+    pushEnable: "开启通知", pushNotNow: "暂不",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -161,6 +163,8 @@ const STR = {
     deleteAccountCancel: "Cancel",
     deleteAccountDeleting: "Deleting…",
     deleteAccountError: "Deletion failed — please try again later",
+    pushPrompt: "Want to know when someone hugs you or replies? Allow notifications 🌸",
+    pushEnable: "Enable notifications", pushNotNow: "Not now",
   },
 };
 
@@ -256,6 +260,38 @@ const ROOM_MSGS = {
     { id: 3, av: "🌿", name: "Xiaoman", text: "I got seven rejections last month and now I have an offer. It does pass, truly.", me: false },
   ],
 };
+
+// ── Web Push helpers ────────────────────────────────────────
+const PUSH_PROMPTED_KEY = "galene_push_prompted";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function isPushSupported() {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  );
+}
+
+async function subscribeToPush(userId) {
+  const registration = await navigator.serviceWorker.register("/sw-push.js", { scope: "/" });
+  await navigator.serviceWorker.ready;
+  const sub = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+  });
+  await supabase.from("profiles").update({ push_subscription: sub.toJSON() }).eq("id", userId);
+  return sub;
+}
 
 // ── Notification helpers ────────────────────────────────────
 async function insertNotif({ recipientId, type, actorId, refId }) {
@@ -827,6 +863,32 @@ function DeleteAccountModal({ lang, userId, onClose, onDeleted }) {
               background: deleting ? C.terracottaSoft : "#C0392B",
               color: "#fff", fontSize: 14, cursor: deleting ? "default" : "pointer" }}>
             {deleting ? t.deleteAccountDeleting : t.deleteAccountConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PushPrompt({ lang, onEnable, onDismiss }) {
+  const t = STR[lang];
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, maxWidth: 480, margin: "0 auto",
+      bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", zIndex: 90, padding: "0 16px" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.terracottaSoft}`, borderRadius: 16,
+        padding: 14, boxShadow: "0 8px 24px rgba(74,47,61,.15)",
+        display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 13, color: C.plum, lineHeight: 1.6 }}>{t.pushPrompt}</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onDismiss}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: `1px solid ${C.line}`,
+              background: "transparent", color: C.plumSoft, fontSize: 13, cursor: "pointer" }}>
+            {t.pushNotNow}
+          </button>
+          <button onClick={onEnable}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: "none",
+              background: C.terracotta, color: "#fff", fontSize: 13, cursor: "pointer" }}>
+            {t.pushEnable}
           </button>
         </div>
       </div>
@@ -3000,7 +3062,8 @@ function TabBar({ lang, tab, setTab, notifCount }) {
     { id: "me", label: t.tabMe, icon: Sparkles },
   ];
   return (
-    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex",
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto",
+      display: "flex", zIndex: 100,
       background: C.card, borderTop: `1px solid ${C.line}`,
       paddingTop: 8, paddingLeft: 0, paddingRight: 0,
       paddingBottom: "calc(14px + env(safe-area-inset-bottom, 0px))" }}>
@@ -3074,6 +3137,7 @@ export default function NuanyuApp() {
   const [feedHighlightPostId, setFeedHighlightPostId] = useState(null);
   const [feedOpenCommentsFor, setFeedOpenCommentsFor] = useState(null);
   const [chatHighlightMsgId, setChatHighlightMsgId] = useState(null);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -3094,6 +3158,30 @@ export default function NuanyuApp() {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
+
+  useEffect(() => {
+    if (!profile || locked || !userId || room) return;
+    if (!isPushSupported()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+    if (localStorage.getItem(PUSH_PROMPTED_KEY)) return;
+    setShowPushPrompt(true);
+  }, [profile, locked, userId, room]);
+
+  const handleEnablePush = async () => {
+    localStorage.setItem(PUSH_PROMPTED_KEY, "1");
+    setShowPushPrompt(false);
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") await subscribeToPush(userId);
+    } catch (err) {
+      console.error("Push subscribe error:", err?.message);
+    }
+  };
+
+  const handleDismissPush = () => {
+    localStorage.setItem(PUSH_PROMPTED_KEY, "1");
+    setShowPushPrompt(false);
+  };
 
   useEffect(() => {
     const storedLang = localStorage.getItem(LANG_KEY);
@@ -3306,6 +3394,9 @@ export default function NuanyuApp() {
               onNavigateToProfile={navigateToActorProfile} />}
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} notifCount={notifCount} />
+          {showPushPrompt && (
+            <PushPrompt lang={lang} onEnable={handleEnablePush} onDismiss={handleDismissPush} />
+          )}
         </>
       )}
       {hugNotifs?.length > 0 && profile && !locked && (

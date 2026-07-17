@@ -5,8 +5,8 @@ export default function manifest() {
     description: "A safe space for women to share, support, and connect anonymously.",
     start_url: "/",
     display: "standalone",
-    background_color: "#FAF3EE",
-    theme_color: "#C9A98B",
+    background_color: "#FBF3EC",
+    theme_color: "#C9755A",
     orientation: "portrait",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
