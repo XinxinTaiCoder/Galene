@@ -230,16 +230,16 @@ const FEED = [
 ];
 
 const ROOMS = [
-  { id: "r1", slug: "late-night", icon: Moon, accent: "#8C7480", online: 47,
+  { id: "r1", slug: "late-night", icon: Moon, accent: "#8C7480",
     title: { zh: "深夜倾诉所", en: "Late-Night Confessions" },
     desc: { zh: "睡不着的时候，有人陪你说说话", en: "When you can't sleep, someone's here to talk" } },
-  { id: "r4", slug: "sweetness", icon: Soup, accent: "#7E9484", online: 92,
+  { id: "r4", slug: "sweetness", icon: Soup, accent: "#7E9484",
     title: { zh: "今天有点甜", en: "A Little Sweetness" },
     desc: { zh: "只发开心的事、好吃的、可爱的", en: "Only happy things, good food, cute stuff" } },
-  { id: "r2", slug: "job-hunt", icon: Sun, accent: "#C9755A", online: 31,
+  { id: "r2", slug: "job-hunt", icon: Sun, accent: "#C9755A",
     title: { zh: "求职互助角", en: "Job-Hunt Support" },
     desc: { zh: "面试、拒信、迷茫，我们都懂", en: "Interviews, rejections, doubt — we get it" } },
-  { id: "r3", slug: "fun-fact", icon: Lightbulb, accent: "#D4A15A", online: 58,
+  { id: "r3", slug: "fun-fact", icon: Lightbulb, accent: "#D4A15A",
     title: { zh: "Fun Fact 知识角", en: "Fun Fact Corner" },
     desc: { zh: "分享一个科学小知识，一起涨见识、慢慢成长", en: "Share a science nugget, grow and learn together" } },
 ];
@@ -1914,6 +1914,19 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
 // ── Rooms ───────────────────────────────────────────────────
 function Rooms({ lang, onEnter }) {
   const t = STR[lang];
+  const [onlineCounts, setOnlineCounts] = useState({});
+
+  useEffect(() => {
+    const channels = ROOMS.map((r) => {
+      const ch = supabase.channel(`chat:${r.slug}`);
+      ch.on("presence", { event: "sync" }, () => {
+        setOnlineCounts((prev) => ({ ...prev, [r.slug]: Object.keys(ch.presenceState()).length }));
+      }).subscribe();
+      return ch;
+    });
+    return () => { channels.forEach((ch) => supabase.removeChannel(ch)); };
+  }, []);
+
   return (
     <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ padding: "18px 16px 14px" }}>
@@ -1936,7 +1949,7 @@ function Rooms({ lang, onEnter }) {
               <div style={{ fontSize: 12.5, color: C.plumSoft, marginTop: 3 }}>{r.desc[lang]}</div>
             </div>
             <div style={{ fontSize: 11, color: C.sage, display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{r.online}
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{onlineCounts[r.slug] ?? 0}
             </div>
           </button>
         );
@@ -1961,6 +1974,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
   const [replyTo, setReplyTo] = useState(null);
   const [rxCounts, setRxCounts] = useState({});
   const [myReactions, setMyReactions] = useState({});
+  const [onlineCount, setOnlineCount] = useState(1);
   const [rxPickerFor, setRxPickerFor] = useState(null);
   const [txSheet, setTxSheet] = useState(null);
   const blockedIdsRef = useRef(new Set());
@@ -2131,7 +2145,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
     load();
 
     const channel = supabase
-      .channel(`chat:${room.slug}`)
+      .channel(`chat:${room.slug}`, { config: { presence: { key: userId } } })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages",
         filter: `room_slug=eq.${room.slug}` },
         async (payload) => {
@@ -2151,7 +2165,14 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
             setMsgs((prev) => [...prev, { ...payload.new, profiles: null }]);
           }
         })
-      .subscribe();
+      .on("presence", { event: "sync" }, () => {
+        setOnlineCount(Object.keys(channel.presenceState()).length);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [room.slug, userId]);
@@ -2215,7 +2236,7 @@ function ChatRoom({ lang, room, profile, userId, onBack, onCrisisDetected, onAbu
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15.5, fontWeight: 500, color: C.plum, fontFamily: "'Noto Serif SC',serif" }}>{room.title[lang]}</div>
-          <div style={{ fontSize: 11, color: C.sage }}>{room.online} {t.sendHint} · {t.guarded}</div>
+          <div style={{ fontSize: 11, color: C.sage }}>{onlineCount} {t.sendHint} · {t.guarded}</div>
         </div>
         <Shield size={17} color={C.sage} />
       </div>
