@@ -6,7 +6,7 @@ import { registerPushNotifications, unregisterPushToken } from "@/lib/pushNotifi
 import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
-  Image as ImageIcon, Bell, Trash2, PhoneCall,
+  Image as ImageIcon, Bell, Trash2, PhoneCall, Eye, EyeOff, LogOut,
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -29,6 +29,15 @@ const GRACE_MS = 3 * 60 * 1000;
 const getStoredPin = () => localStorage.getItem(PIN_KEY);
 const setStoredPin = (p) => localStorage.setItem(PIN_KEY, p);
 const clearStoredPin = () => localStorage.removeItem(PIN_KEY);
+
+// Shows only the first few characters of the local part — for the user's own
+// eyes on the Me page only. Never send/render this for other users.
+const maskEmail = (email) => {
+  if (!email || !email.includes("@")) return email || "";
+  const [name, domain] = email.split("@");
+  const visible = name.slice(0, Math.min(3, name.length));
+  return `${visible}***@${domain}`;
+};
 
 // ── i18n ────────────────────────────────────────────────────
 const STR = {
@@ -98,6 +107,30 @@ const STR = {
     deleteAccountError: "删除失败，请稍后重试",
     pushPrompt: "想在有人抱你或回复时收到提醒吗？开启通知 🌸",
     pushEnable: "开启通知", pushNotNow: "暂不",
+    signUpBtn: "注册", alreadyHaveAccount: "已有账号？登录",
+    logInBtn: "登录", dontHaveAccount: "还没有账号？注册",
+    signUpTitle: "创建账号", logInTitle: "登录",
+    emailLabel: "邮箱地址", emailPlaceholder: "你的邮箱",
+    passwordLabel: "密码（至少 8 位）", passwordPlaceholder: "输入密码",
+    confirmPasswordLabel: "确认密码", confirmPasswordPlaceholder: "再次输入密码",
+    phoneComingSoon: "手机号注册即将推出",
+    continueBtn: "继续",
+    forgotPassword: "忘记密码？",
+    resetSent: "重置邮件已发送，请查收",
+    resetEmailNeeded: "请先输入邮箱地址",
+    errorEmailInUse: "该邮箱已注册，请直接登录",
+    errorPasswordMismatch: "两次密码不一致",
+    errorInvalidEmail: "邮箱格式看起来不太对，请检查一下",
+    errorPasswordTooShort: "密码至少需要 8 位",
+    errorInvalidCredentials: "邮箱或密码不正确，请再试一次",
+    errorGeneric: "出了点小问题，请稍后再试",
+    confirmEmailPending: "注册成功，但邮箱验证尚未关闭 —— 请联系管理员在 Supabase 关闭 Confirm email",
+    accountLabel: "账号：",
+    signOut: "退出登录", signOutSub: "退出后需要重新登录",
+    signOutConfirmTitle: "确认退出登录？",
+    signOutConfirmBody: "退出后需要重新登录，确认退出吗？",
+    signOutConfirmYes: "确认退出", signOutConfirmCancel: "取消",
+    signOutInProgress: "正在退出…",
   },
   en: {
     appName: "Galene", tagline: "A woman-centered, gentle, safe corner",
@@ -165,6 +198,30 @@ const STR = {
     deleteAccountError: "Deletion failed — please try again later",
     pushPrompt: "Want to know when someone hugs you or replies? Allow notifications 🌸",
     pushEnable: "Enable notifications", pushNotNow: "Not now",
+    signUpBtn: "Sign up", alreadyHaveAccount: "Already have an account? Log in",
+    logInBtn: "Log in", dontHaveAccount: "Don't have an account? Sign up",
+    signUpTitle: "Create your account", logInTitle: "Log in",
+    emailLabel: "Email address", emailPlaceholder: "Your email",
+    passwordLabel: "Password (at least 8 characters)", passwordPlaceholder: "Enter password",
+    confirmPasswordLabel: "Confirm password", confirmPasswordPlaceholder: "Re-enter password",
+    phoneComingSoon: "Phone number sign-up coming soon",
+    continueBtn: "Continue",
+    forgotPassword: "Forgot password?",
+    resetSent: "Reset email sent — please check your inbox",
+    resetEmailNeeded: "Please enter your email first",
+    errorEmailInUse: "This email is already registered — please log in instead",
+    errorPasswordMismatch: "Passwords don't match",
+    errorInvalidEmail: "That email doesn't look quite right — please check it",
+    errorPasswordTooShort: "Password must be at least 8 characters",
+    errorInvalidCredentials: "Email or password is incorrect — please try again",
+    errorGeneric: "Something went wrong — please try again shortly",
+    confirmEmailPending: "Account created, but email confirmation is still on — ask your admin to disable Confirm email in Supabase",
+    accountLabel: "Account: ",
+    signOut: "Log out", signOutSub: "You'll need to log in again",
+    signOutConfirmTitle: "Log out?",
+    signOutConfirmBody: "You'll need to log in again afterward. Are you sure?",
+    signOutConfirmYes: "Yes, log out", signOutConfirmCancel: "Cancel",
+    signOutInProgress: "Logging out…",
   },
 };
 
@@ -541,6 +598,306 @@ function PinSetupModal({ lang, onDone, onClose }) {
           marginBottom: 12 }}>{error}</div>}
         <div style={{ display: "flex", justifyContent: "center", marginTop: error ? 8 : 20 }}>
           <PinKeypad onPress={handleKey} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Email/password auth ────────────────────────────────────
+function PasswordField({ value, onChange, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input type={show ? "text" : "password"} value={value} onChange={onChange}
+        placeholder={placeholder} autoComplete={autoComplete}
+        style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+          borderRadius: 12, padding: "12px 44px 12px 14px", fontSize: 14, outline: "none",
+          background: C.card, color: C.plum }} />
+      <button type="button" onClick={() => setShow((s) => !s)}
+        style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+          background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 4,
+          display: "flex" }}>
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+}
+
+function AuthTextField({ label, ...inputProps }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{label}</div>
+      <input {...inputProps}
+        style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+          borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none",
+          background: C.card, color: C.plum }} />
+    </div>
+  );
+}
+
+function AuthWelcome({ lang, setLang, onSignUp, onLogin }) {
+  const t = STR[lang];
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column",
+      background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)` }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
+        <LangToggle lang={lang} setLang={setLang} />
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: 36, textAlign: "center" }}>
+        <Avatar emoji="🌿" color={C.card} size={72} />
+        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 30, fontWeight: 700,
+          color: C.plum, marginTop: 18 }}>{t.appName}</div>
+        <div style={{ color: C.plumSoft, fontSize: 14, marginTop: 12, lineHeight: 1.6 }}>{t.tagline}</div>
+        <div style={{ marginTop: 40, width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
+          <button onClick={onSignUp}
+            style={{ width: "100%", padding: 15, borderRadius: 16, border: "none",
+              background: C.terracotta, color: "#fff", fontSize: 15.5, cursor: "pointer",
+              fontFamily: "'Noto Serif SC',serif" }}>{t.signUpBtn}</button>
+          <button onClick={onLogin}
+            style={{ width: "100%", padding: 15, borderRadius: 16, cursor: "pointer", fontSize: 14.5,
+              border: `1px solid ${C.terracotta}`, background: "transparent", color: C.terracotta,
+              fontFamily: "'Noto Serif SC',serif" }}>{t.alreadyHaveAccount}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignUpForm({ lang, setLang, onSwitchToLogin }) {
+  const t = STR[lang];
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+  const handleSubmit = async () => {
+    setError("");
+    const trimmedEmail = email.trim();
+    if (!isValidEmail(trimmedEmail)) { setError(t.errorInvalidEmail); return; }
+    if (password.length < 8) { setError(t.errorPasswordTooShort); return; }
+    if (password !== confirmPassword) { setError(t.errorPasswordMismatch); return; }
+
+    setSubmitting(true);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: trimmedEmail, password,
+      });
+      if (signUpError) {
+        console.error("Sign up error:", signUpError.message, signUpError.status, signUpError);
+        if (signUpError.message?.toLowerCase().includes("already registered") ||
+            signUpError.message?.toLowerCase().includes("already been registered")) {
+          setError(t.errorEmailInUse);
+        } else {
+          setError(t.errorGeneric);
+        }
+        return;
+      }
+      // With "Confirm email" disabled (the intended project setting), signing
+      // up with an already-registered email returns success with no error,
+      // but no session and an empty identities array.
+      if (!data?.session && (!data?.user?.identities || data.user.identities.length === 0)) {
+        setError(t.errorEmailInUse);
+        return;
+      }
+      // If the project still has "Confirm email" turned on, a genuinely new
+      // signup comes back with a user but no session — surface that instead
+      // of silently doing nothing.
+      if (!data?.session) {
+        setError(t.confirmEmailPending);
+        return;
+      }
+      // Real success: the App-level onAuthStateChange listener picks up the
+      // new session and moves us into onboarding automatically.
+    } catch (err) {
+      console.error("Sign up exception:", err?.message, err);
+      setError(t.errorGeneric);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflowY: "auto",
+      background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)` }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
+        <LangToggle lang={lang} setLang={setLang} />
+      </div>
+      <div style={{ flex: 1, padding: "20px 28px 36px", display: "flex", flexDirection: "column" }}>
+        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 22, color: C.plum, fontWeight: 700,
+          marginBottom: 24 }}>{t.signUpTitle}</div>
+
+        <AuthTextField label={t.emailLabel} type="email" value={email} autoComplete="email"
+          onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} />
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.passwordLabel}</div>
+          <PasswordField value={password} onChange={(e) => setPassword(e.target.value)}
+            placeholder={t.passwordPlaceholder} autoComplete="new-password" />
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.confirmPasswordLabel}</div>
+          <PasswordField value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder={t.confirmPasswordPlaceholder} autoComplete="new-password" />
+        </div>
+
+        <div style={{ fontSize: 12, color: C.plumSoft, marginBottom: 20 }}>{t.phoneComingSoon}</div>
+
+        {error && <div style={{ color: C.terracotta, fontSize: 13, marginBottom: 14 }}>{error}</div>}
+
+        <button onClick={handleSubmit} disabled={submitting}
+          style={{ width: "100%", padding: 15, borderRadius: 16, border: "none",
+            background: submitting ? C.terracottaSoft : C.terracotta, color: "#fff", fontSize: 15.5,
+            cursor: submitting ? "default" : "pointer", fontFamily: "'Noto Serif SC',serif" }}>
+          {submitting ? t.saving : t.continueBtn}
+        </button>
+
+        <button onClick={onSwitchToLogin}
+          style={{ marginTop: 18, background: "none", border: "none", cursor: "pointer",
+            color: C.plumSoft, fontSize: 13, textDecoration: "underline", alignSelf: "center" }}>
+          {t.alreadyHaveAccount}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LoginForm({ lang, setLang, onSwitchToSignUp }) {
+  const t = STR[lang];
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleSubmit = async () => {
+    setError(""); setNotice("");
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) { setError(t.errorInvalidCredentials); return; }
+    setSubmitting(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail, password,
+      });
+      if (signInError) {
+        console.error("Sign in error:", signInError.message, signInError.status, signInError);
+        setError(t.errorInvalidCredentials);
+      }
+      // Success handled by the App-level onAuthStateChange listener.
+    } catch (err) {
+      console.error("Sign in exception:", err?.message, err);
+      setError(t.errorGeneric);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(""); setNotice("");
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) { setError(t.resetEmailNeeded); return; }
+    setResetting(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
+      if (resetError) {
+        console.error("Reset password error:", resetError.message, resetError);
+        setError(t.errorGeneric);
+      } else {
+        setNotice(t.resetSent);
+      }
+    } catch (err) {
+      console.error("Reset password exception:", err?.message, err);
+      setError(t.errorGeneric);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflowY: "auto",
+      background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)` }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px 0" }}>
+        <LangToggle lang={lang} setLang={setLang} />
+      </div>
+      <div style={{ flex: 1, padding: "20px 28px 36px", display: "flex", flexDirection: "column" }}>
+        <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 22, color: C.plum, fontWeight: 700,
+          marginBottom: 24 }}>{t.logInTitle}</div>
+
+        <AuthTextField label={t.emailLabel} type="email" value={email} autoComplete="email"
+          onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} />
+
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.passwordLabel}</div>
+          <PasswordField value={password} onChange={(e) => setPassword(e.target.value)}
+            placeholder={t.passwordPlaceholder} autoComplete="current-password" />
+        </div>
+
+        <button onClick={handleForgotPassword} disabled={resetting}
+          style={{ alignSelf: "flex-end", background: "none", border: "none",
+            cursor: resetting ? "default" : "pointer", color: C.terracotta, fontSize: 12.5,
+            marginBottom: 16, padding: 0 }}>
+          {t.forgotPassword}
+        </button>
+
+        {error && <div style={{ color: C.terracotta, fontSize: 13, marginBottom: 14 }}>{error}</div>}
+        {notice && <div style={{ color: C.sage, fontSize: 13, marginBottom: 14 }}>{notice}</div>}
+
+        <button onClick={handleSubmit} disabled={submitting}
+          style={{ width: "100%", padding: 15, borderRadius: 16, border: "none",
+            background: submitting ? C.terracottaSoft : C.terracotta, color: "#fff", fontSize: 15.5,
+            cursor: submitting ? "default" : "pointer", fontFamily: "'Noto Serif SC',serif" }}>
+          {submitting ? t.saving : t.logInBtn}
+        </button>
+
+        <button onClick={onSwitchToSignUp}
+          style={{ marginTop: 18, background: "none", border: "none", cursor: "pointer",
+            color: C.plumSoft, fontSize: 13, textDecoration: "underline", alignSelf: "center" }}>
+          {t.dontHaveAccount}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SignOutModal({ lang, onClose, onConfirm }) {
+  const t = STR[lang];
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleConfirm = async () => {
+    setSigningOut(true);
+    await onConfirm();
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, zIndex: 300 }}>
+      <div style={{ background: C.card, borderRadius: 22, padding: 24, width: "100%",
+        border: `1px solid ${C.terracottaSoft}`,
+        boxShadow: "0 8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ fontSize: 16, fontFamily: "'Noto Serif SC',serif",
+          color: C.plum, fontWeight: 700, marginBottom: 12 }}>{t.signOutConfirmTitle}</div>
+        <div style={{ fontSize: 13.5, color: C.plumSoft, lineHeight: 1.7, marginBottom: 20 }}>
+          {t.signOutConfirmBody}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} disabled={signingOut}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 14,
+              border: `1px solid ${C.line}`, background: "transparent",
+              color: C.plumSoft, fontSize: 14, cursor: "pointer" }}>
+            {t.signOutConfirmCancel}
+          </button>
+          <button onClick={handleConfirm} disabled={signingOut}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 14, border: "none",
+              background: C.terracotta, color: "#fff", fontSize: 14, cursor: "pointer" }}>
+            {signingOut ? t.signOutInProgress : t.signOutConfirmYes}
+          </button>
         </div>
       </div>
     </div>
@@ -2610,7 +2967,7 @@ function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
 }
 
 // ── Me ──────────────────────────────────────────────────────
-function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
+function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
   const t = STR[lang];
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
@@ -2618,7 +2975,21 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
   const [showGuard, setShowGuard] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [showSignOut, setShowSignOut] = useState(false);
   const [totalHugs, setTotalHugs] = useState(null);
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) console.error("Sign out error:", error.message, error);
+    } catch (err) {
+      console.error("Sign out exception:", err?.message, err);
+    } finally {
+      clearStoredPin();
+      localStorage.removeItem(ACTIVE_TS_KEY);
+      setShowSignOut(false);
+    }
+  };
 
   useEffect(() => { setPinExists(!!getStoredPin()); }, []);
 
@@ -2639,7 +3010,7 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
         const { count: profileHugCount } = await supabase
           .from("profile_hugs").select("from_id", { count: "exact", head: true })
           .eq("to_id", userId);
-        setTotalHugs(99 + postHugCount + (profileHugCount || 0));
+        setTotalHugs(postHugCount + (profileHugCount || 0));
       } catch (err) {
         console.error("Hug count error:", err?.message, err?.code, err?.details, err?.hint, err);
       }
@@ -2701,6 +3072,11 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 19, color: C.plum,
           fontWeight: 700 }}>{profile.nickname || t.meName}</div>
         <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 4 }}>{t.meSub}</div>
+        {email && (
+          <div style={{ fontSize: 11, color: C.plumSoft, marginTop: 4 }}>
+            {t.accountLabel}{maskEmail(email)}
+          </div>
+        )}
         <button onClick={() => setShowEditProfile(true)}
           style={{ marginTop: 10, padding: "7px 18px", borderRadius: 999, border: `1px solid ${C.terracotta}`,
             background: "transparent", color: C.terracotta, fontSize: 13, cursor: "pointer" }}>
@@ -2741,6 +3117,8 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
         onClick={() => setShowGuard(true)} />
       <SettingRow icon={PhoneCall} label={t.crisisResources} sub={t.crisisResourcesSub}
         onClick={() => window.open("/support", "_blank", "noopener")} />
+      <SettingRow icon={LogOut} label={t.signOut} sub={t.signOutSub} danger
+        onClick={() => setShowSignOut(true)} />
       <SettingRow icon={Trash2} label={t.deleteAccount} sub={t.deleteAccountSub} danger
         onClick={() => setShowDeleteAccount(true)} />
 
@@ -2779,6 +3157,11 @@ function Me({ lang, setLang, profile, userId, onProfileUpdate, notifCount, onNav
         <DeleteAccountModal lang={lang} userId={userId}
           onClose={() => setShowDeleteAccount(false)}
           onDeleted={() => window.location.reload()} />
+      )}
+      {showSignOut && (
+        <SignOutModal lang={lang}
+          onClose={() => setShowSignOut(false)}
+          onConfirm={handleSignOut} />
       )}
       {showNotifs && (
         <NotificationsPage lang={lang} userId={userId}
@@ -3128,6 +3511,8 @@ export default function NuanyuApp() {
   const [authLoading, setAuthLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [session, setSession] = useState(null);
+  const [authView, setAuthView] = useState("welcome"); // 'welcome' | 'signup' | 'login'
   const [showCrisisModal, setShowCrisisModal] = useState(false);
   const [showAbuseModal, setShowAbuseModal] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
@@ -3191,25 +3576,18 @@ export default function NuanyuApp() {
     const elapsed = lastActive ? Date.now() - parseInt(lastActive, 10) : Infinity;
     setLocked(!!pin && elapsed > GRACE_MS);
 
-    const init = async () => {
+    const bootstrapProfile = async (uid) => {
       try {
-        let currentUser = null;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          currentUser = user;
-        } else {
-          const { data, error } = await supabase.auth.signInAnonymously();
-          if (error) throw error;
-          currentUser = data.user;
-        }
-        setUserId(currentUser.id);
-        registerPushNotifications(currentUser.id);
-
-        const { data: profileData } = await supabase
+        const { data: profileData, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", currentUser.id)
+          .eq("id", uid)
           .single();
+
+        // PGRST116 = "no rows" from .single() — expected for a brand-new user.
+        if (error && error.code !== "PGRST116") {
+          console.error("Fetch profile error:", error.message, error.code, error.details, error.hint);
+        }
 
         if (profileData) {
           setProfile({
@@ -3219,6 +3597,22 @@ export default function NuanyuApp() {
             strengths: profileData.strengths || [],
             banned: profileData.banned || false,
           });
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error("Fetch profile exception:", err?.message, err);
+      }
+    };
+
+    const init = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        setSession(currentSession);
+        if (currentSession?.user) {
+          setUserId(currentSession.user.id);
+          registerPushNotifications(currentSession.user.id);
+          await bootstrapProfile(currentSession.user.id);
         }
       } catch (err) {
         console.error("Init error:", err);
@@ -3227,6 +3621,22 @@ export default function NuanyuApp() {
       }
     };
     init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      if (newSession?.user) {
+        setUserId(newSession.user.id);
+        if (event === "SIGNED_IN") {
+          registerPushNotifications(newSession.user.id);
+          bootstrapProfile(newSession.user.id);
+        }
+      } else {
+        setUserId(null);
+        setProfile(null);
+        setAuthView("welcome");
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -3360,7 +3770,17 @@ export default function NuanyuApp() {
 
   return shell(
     <>
-      {locked ? (
+      {!session ? (
+        authView === "signup" ? (
+          <SignUpForm lang={lang} setLang={setLang} onSwitchToLogin={() => setAuthView("login")} />
+        ) : authView === "login" ? (
+          <LoginForm lang={lang} setLang={setLang} onSwitchToSignUp={() => setAuthView("signup")} />
+        ) : (
+          <AuthWelcome lang={lang} setLang={setLang}
+            onSignUp={() => setAuthView("signup")}
+            onLogin={() => setAuthView("login")} />
+        )
+      ) : locked ? (
         <LockScreen lang={lang} setLang={setLang} onUnlock={() => setLocked(false)} />
       ) : !profile ? (
         <Onboarding lang={lang} setLang={setLang} onDone={handleOnboardingDone} saving={saving} />
@@ -3381,6 +3801,7 @@ export default function NuanyuApp() {
               onHighlightDone={() => { setFeedHighlightPostId(null); setFeedOpenCommentsFor(null); }} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
             {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId}
+              email={session?.user?.email}
               onProfileUpdate={(p) => setProfile(p)}
               notifCount={notifCount}
               onNotifRead={() => setNotifCount((n) => Math.max(0, n - 1))}
