@@ -307,7 +307,7 @@ const ROOMS = [
     title: { zh: "今天有点甜", en: "A Little Sweetness" },
     desc: { zh: "只发开心的事、好吃的、可爱的", en: "Only happy things, good food, cute stuff" } },
   { id: "r2", slug: "job-hunt", icon: Sun, accent: "#C9755A",
-    title: { zh: "求职互助角", en: "Job-Hunt Support" },
+    title: { zh: "求职互助角", en: "Career and Growth Support" },
     desc: { zh: "面试、拒信、迷茫，我们都懂", en: "Interviews, rejections, doubt — we get it" } },
   { id: "r3", slug: "fun-fact", icon: Lightbulb, accent: "#D4A15A",
     title: { zh: "Fun Fact 知识角", en: "Fun Fact Corner" },
