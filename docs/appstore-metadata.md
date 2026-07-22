@@ -90,10 +90,20 @@ women,anonymous,emotional support,mental health,community,chat,safe space,vent,h
 
 ## What's New (version notes — 500 chars)
 ```
+• 新增邮箱账号注册与登录，资料更安全（昵称头像对他人仍完全匿名）
 • 新增暖心通知系统，不错过每一个拥抱和回复
 • 点击通知直接跳转到对应内容
 • 增加账号注销功能（设置 → 删除账号）
 • 优化整体体验与安全性
+```
+
+English:
+```
+• Added email account sign-up/login for better account security (nickname & avatar stay fully anonymous to others)
+• New warm notification system — never miss a hug or reply
+• Tap a notification to jump straight to the related content
+• Added account deletion (Settings → Delete Account)
+• Overall experience and security improvements
 ```
 
 ---
@@ -126,16 +136,19 @@ Rationale to include in App Review Notes:
 ## App Review Notes (paste into App Store Connect)
 
 ```
-Test account: not required — the app uses anonymous authentication (no email/password).
-When first launched, the app shows an age consent screen (17+) and terms checkbox before proceeding.
+Test account: REQUIRED — the app now uses email/password authentication.
+Provide a working test account (email + password) in App Store Connect before submitting.
+When first launched, the app shows a welcome screen (Sign up / Log in), then an age
+consent screen (17+) and terms checkbox before proceeding.
 
 Key flows to review:
-1. Launch → agree to age gate and terms → enter the feed
+1. Launch → Sign up (email + password) or Log in → agree to age gate and terms → enter the feed
 2. Tap any post → hug it → receive notification
 3. Tap bell → see notification → tap to navigate to that post
 4. Me tab → Delete Account (verifies data deletion requirement)
-5. Me tab → Crisis Resources (hotlines for CN/TW/HK/US/UK/CA/AU)
-6. Me tab → Terms of Service / Privacy Policy
+5. Me tab → Log out → confirm → returns to the welcome screen
+6. Me tab → Crisis Resources (hotlines for CN/TW/HK/US/UK/CA/AU)
+7. Me tab → Terms of Service / Privacy Policy
 
 Support URL: https://galene-ydtp.vercel.app/support
 Privacy Policy URL: https://galene-ydtp.vercel.app/privacy
@@ -158,11 +171,11 @@ Privacy Policy URL: https://galene-ydtp.vercel.app/privacy
 **Data NOT collected:** None used to track users across apps/websites.
 
 **Data linked to you:**
-- None (all users are anonymous UUIDs — no name, email, or phone)
+- Contact Info (Email Address) — used for App Functionality (account login, password recovery) and Account Management only. Not used for tracking, not shared with third parties, and never shown to other users or linked to your public nickname/avatar.
+- Identifiers (User ID) — used for App Functionality.
 
 **Data not linked to you:**
-- User Content (posts, messages, comments) — stored anonymously
-- Identifiers (device UUID for anonymous auth) — not linkable to real identity
+- User Content (posts, messages, comments) — stored under your anonymous nickname/avatar, not linked to your email or shown alongside it
 
 ---
 

@@ -6,7 +6,7 @@ export default function TermsPage() {
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 80px", fontFamily: "system-ui,sans-serif", color: "#2d1f28", lineHeight: 1.75 }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>用户服务协议</h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>English version below · 最后更新：2026 年 6 月</p>
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>English version below · 最后更新：2026 年 7 月</p>
 
       <section>
         <h2>1. 服务说明</h2>
@@ -15,8 +15,8 @@ export default function TermsPage() {
         <h2>2. 使用资格</h2>
         <p>你必须年满 <strong>17 岁</strong>方可使用本服务。使用本服务即表示你确认你已达到最低年龄要求。</p>
 
-        <h2>3. 账号与匿名性</h2>
-        <p>本服务采用匿名方式运行。你无需提供真实姓名、邮箱或手机号。你的账号由设备上的随机标识符唯一标识。请勿在平台上透露他人的真实身份信息。</p>
+        <h2>3. 账号与隐私</h2>
+        <p>使用本服务需要通过邮箱地址和密码注册账号。你无需提供真实姓名或手机号。你的昵称、头像等个人资料在平台内以匿名方式展示给其他用户——你的邮箱地址仅用于登录验证、找回密码及必要的账号通知，绝不会展示给其他用户或用于公开识别你的身份。请设置安全的密码并妥善保管账号信息；因账号密码泄露或被他人获取而造成的损失，由你自行承担。请勿在平台上透露他人的真实身份信息。</p>
 
         <h2>4. 用户行为准则</h2>
         <p>使用本服务时，你同意<strong>不</strong>：</p>
@@ -60,7 +60,7 @@ export default function TermsPage() {
       <hr style={{ margin: "56px 0", border: "none", borderTop: "1px solid #e8ddd5" }} />
 
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Terms of Service</h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>Last updated: June 2026</p>
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>Last updated: July 2026</p>
 
       <section>
         <h2>1. About the Service</h2>
@@ -69,8 +69,8 @@ export default function TermsPage() {
         <h2>2. Eligibility</h2>
         <p>You must be at least <strong>17 years old</strong> to use Galene. By using the service you confirm you meet this requirement.</p>
 
-        <h2>3. Account &amp; Anonymity</h2>
-        <p>Galene operates anonymously. No real name, email, or phone number is required. Your account is identified only by a random device-level identifier. Do not reveal other users' real identities on the platform.</p>
+        <h2>3. Account &amp; Privacy</h2>
+        <p>Using Galene requires creating an account with an email address and password. No real name or phone number is required. Your nickname, avatar, and other profile details are shown to other users anonymously — your email address is used only for login verification, password recovery, and necessary account notices, and is never shown to other users or used to publicly identify you. Please choose a secure password and keep your account credentials safe; you are responsible for any loss resulting from a compromised or shared account. Do not reveal other users' real identities on the platform.</p>
 
         <h2>4. Community Rules</h2>
         <p>You agree <strong>not</strong> to:</p>

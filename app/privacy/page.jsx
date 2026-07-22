@@ -6,18 +6,18 @@ export default function PrivacyPage() {
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 80px", fontFamily: "system-ui,sans-serif", color: "#2d1f28", lineHeight: 1.75 }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>隐私政策</h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>English version below · 最后更新：2026 年 6 月</p>
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>English version below · 最后更新：2026 年 7 月</p>
 
       <section>
         <h2>1. 我们收集什么信息</h2>
-        <p>Galene 是一个匿名社群，我们尽可能少地收集个人信息。具体包括：</p>
+        <p>Galene 是一个匿名社群——你展示给其他用户的身份（昵称、头像）始终是匿名的。我们尽可能少地收集个人信息，具体包括：</p>
         <ul>
-          <li><strong>账号标识符</strong>：我们通过 Supabase 匿名认证为每位用户生成一个不含任何个人信息的随机 ID（UUID）。</li>
+          <li><strong>账号信息</strong>：注册时你提供的邮箱地址和密码。密码由 Supabase Auth 加密存储，我们无法以明文查看；邮箱地址仅用于登录验证、找回密码及必要的账号通知。</li>
           <li><strong>用户生成内容</strong>：你在「分享」发布的帖子、在倾诉房间发送的消息、发表的评论，以及你选择的头像（Emoji）和昵称。</li>
           <li><strong>互动数据</strong>：你对帖子和用户的「抱抱」、屏蔽记录、举报记录、通知。</li>
           <li><strong>设备信息</strong>：App 崩溃日志（由 Supabase 平台自动收集，不含任何可识别信息）。</li>
         </ul>
-        <p>我们<strong>不</strong>收集：真实姓名、电子邮件、手机号、位置信息、联系人列表、摄像头/麦克风数据（除非你主动上传图片）。</p>
+        <p>我们<strong>不</strong>收集：真实姓名、手机号、位置信息、联系人列表、摄像头/麦克风数据（除非你主动上传图片）。你的邮箱地址<strong>绝不会展示给其他用户</strong>，也不会被用于在平台内公开识别你的身份。</p>
 
         <h2>2. 信息如何使用</h2>
         <ul>
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>查看与导出</strong>：你可以通过 App 查看自己发布的所有内容。</li>
           <li><strong>删除账号</strong>：你可以在「我的 → 删除账号」中永久删除账号及所有相关数据（帖子、消息、评论、互动记录、通知等）。删除操作不可撤销。</li>
-          <li><strong>更正</strong>：你可以随时编辑自己的昵称和头像。</li>
+          <li><strong>更正</strong>：你可以随时编辑自己的昵称和头像，也可以通过「忘记密码」随时重置登录密码。</li>
         </ul>
 
         <h2>5. 未成年人保护</h2>
@@ -57,18 +57,18 @@ export default function PrivacyPage() {
       <hr style={{ margin: "56px 0", border: "none", borderTop: "1px solid #e8ddd5" }} />
 
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Privacy Policy</h1>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>Last updated: June 2026</p>
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 36 }}>Last updated: July 2026</p>
 
       <section>
         <h2>1. What We Collect</h2>
-        <p>Galene is an anonymous community app. We collect as little personal information as possible:</p>
+        <p>Galene is an anonymous community app — the identity you show other users (nickname, avatar) is always anonymous. We collect as little personal information as possible:</p>
         <ul>
-          <li><strong>Account identifier</strong>: We use Supabase anonymous authentication to generate a random UUID for each user — no personal information is attached.</li>
+          <li><strong>Account information</strong>: The email address and password you provide when signing up. Your password is encrypted by Supabase Auth and never visible to us in plain text; your email is used only for login verification, password recovery, and necessary account notices.</li>
           <li><strong>User-generated content</strong>: Posts you share, messages you send in confide rooms, comments, and your chosen avatar (emoji) and nickname.</li>
           <li><strong>Interaction data</strong>: Hugs you send to posts and profiles, block records, reports, and notifications.</li>
           <li><strong>Device information</strong>: Crash logs automatically collected by Supabase — no personally identifiable data.</li>
         </ul>
-        <p>We do <strong>not</strong> collect: real name, email, phone number, location, contacts, or camera/microphone data (unless you choose to upload a photo).</p>
+        <p>We do <strong>not</strong> collect: real name, phone number, location, contacts, or camera/microphone data (unless you choose to upload a photo). Your email address is <strong>never shown to other users</strong> and is never used to publicly identify you on the platform.</p>
 
         <h2>2. How We Use It</h2>
         <ul>
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>Access &amp; export</strong>: You can view all content you have published directly in the App.</li>
           <li><strong>Delete account</strong>: You can permanently delete your account and all associated data (posts, messages, comments, interactions, notifications) via <em>Me → Delete Account</em>. Deletion is irreversible.</li>
-          <li><strong>Correction</strong>: You can update your nickname and avatar at any time.</li>
+          <li><strong>Correction</strong>: You can update your nickname and avatar at any time, and reset your password at any time via "Forgot password."</li>
         </ul>
 
         <h2>5. Children</h2>
