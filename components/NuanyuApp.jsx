@@ -7,6 +7,7 @@ import {
   Heart, MessageCircle, Home, Sparkles, Lock, Shield, Flag,
   Send, ChevronLeft, Sun, Moon, Soup, Smile, X, Lightbulb, Check, Globe, UserX,
   Image as ImageIcon, Bell, Trash2, PhoneCall, Eye, EyeOff, LogOut,
+  Download, Share2,
 } from "lucide-react";
 
 // ── Warm "dusk tea" palette ────────────────────────────────
@@ -107,6 +108,10 @@ const STR = {
     deleteAccountError: "删除失败，请稍后重试",
     pushPrompt: "想在有人抱你或回复时收到提醒吗？开启通知 🌸",
     pushEnable: "开启通知", pushNotNow: "暂不",
+    installPromptAndroid: "把宁静之海添加到主屏幕，像 App 一样随时打开 🌿",
+    installNow: "添加到主屏幕", installNotNow: "暂不",
+    installPromptIOS: "点击浏览器底部的分享按钮 📤，选择「添加到主屏幕」，就能像 App 一样打开宁静之海",
+    installGotIt: "知道了",
     signUpBtn: "注册", alreadyHaveAccount: "已有账号？登录",
     logInBtn: "登录", dontHaveAccount: "还没有账号？注册",
     signUpTitle: "创建账号", logInTitle: "登录",
@@ -198,6 +203,10 @@ const STR = {
     deleteAccountError: "Deletion failed — please try again later",
     pushPrompt: "Want to know when someone hugs you or replies? Allow notifications 🌸",
     pushEnable: "Enable notifications", pushNotNow: "Not now",
+    installPromptAndroid: "Add Galene to your home screen — open it like an app anytime 🌿",
+    installNow: "Add to Home Screen", installNotNow: "Not now",
+    installPromptIOS: "Tap the Share button 📤 in your browser, then choose \"Add to Home Screen\" to open Galene like an app",
+    installGotIt: "Got it",
     signUpBtn: "Sign up", alreadyHaveAccount: "Already have an account? Log in",
     logInBtn: "Log in", dontHaveAccount: "Don't have an account? Sign up",
     signUpTitle: "Create your account", logInTitle: "Log in",
@@ -320,6 +329,9 @@ const ROOM_MSGS = {
 
 // ── Web Push helpers ────────────────────────────────────────
 const PUSH_PROMPTED_KEY = "galene_push_prompted";
+
+// ── PWA install prompt ───────────────────────────────────────
+const INSTALL_PROMPTED_KEY = "galene_install_prompted";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -1247,6 +1259,50 @@ function PushPrompt({ lang, onEnable, onDismiss }) {
               background: C.terracotta, color: "#fff", fontSize: 13, cursor: "pointer" }}>
             {t.pushEnable}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallPrompt({ lang, platform, onInstall, onDismiss }) {
+  const t = STR[lang];
+  const isIOS = platform === "ios";
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, maxWidth: 480, margin: "0 auto",
+      bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", zIndex: 90, padding: "0 16px" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.terracottaSoft}`, borderRadius: 16,
+        padding: 14, boxShadow: "0 8px 24px rgba(74,47,61,.15)",
+        display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          {isIOS
+            ? <Share2 size={17} color={C.terracotta} style={{ flexShrink: 0, marginTop: 1 }} />
+            : <Download size={17} color={C.terracotta} style={{ flexShrink: 0, marginTop: 1 }} />}
+          <div style={{ fontSize: 13, color: C.plum, lineHeight: 1.6 }}>
+            {isIOS ? t.installPromptIOS : t.installPromptAndroid}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {isIOS ? (
+            <button onClick={onDismiss}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: "none",
+                background: C.terracotta, color: "#fff", fontSize: 13, cursor: "pointer" }}>
+              {t.installGotIt}
+            </button>
+          ) : (
+            <>
+              <button onClick={onDismiss}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: `1px solid ${C.line}`,
+                  background: "transparent", color: C.plumSoft, fontSize: 13, cursor: "pointer" }}>
+                {t.installNotNow}
+              </button>
+              <button onClick={onInstall}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: "none",
+                  background: C.terracotta, color: "#fff", fontSize: 13, cursor: "pointer" }}>
+                {t.installNow}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -3523,6 +3579,9 @@ export default function NuanyuApp() {
   const [feedOpenCommentsFor, setFeedOpenCommentsFor] = useState(null);
   const [chatHighlightMsgId, setChatHighlightMsgId] = useState(null);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [installEvent, setInstallEvent] = useState(null);
+  const [installPlatform, setInstallPlatform] = useState(null); // 'android' | 'ios' | null
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   const lang = langState;
   const setLang = (l) => { setLangState(l); localStorage.setItem(LANG_KEY, l); };
@@ -3546,11 +3605,70 @@ export default function NuanyuApp() {
 
   useEffect(() => {
     if (!profile || locked || !userId || room) return;
+    if (showInstallPrompt) return; // don't stack the two banners
     if (!isPushSupported()) return;
     if (typeof Notification === "undefined" || Notification.permission !== "default") return;
     if (localStorage.getItem(PUSH_PROMPTED_KEY)) return;
     setShowPushPrompt(true);
-  }, [profile, locked, userId, room]);
+  }, [profile, locked, userId, room, showInstallPrompt]);
+
+  // Capture the browser's native "Add to Home Screen" prompt as early as
+  // possible — beforeinstallprompt only fires once per page load, so we
+  // can't wait for onboarding to finish before registering the listener.
+  // iOS Safari has no equivalent API — there's no way to trigger the native
+  // prompt programmatically, so we just detect the platform and later show
+  // manual instructions instead.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) && !window.MSStream;
+    const isAndroid = /Android/i.test(ua);
+
+    if (isIOS) { setInstallPlatform("ios"); return; }
+    if (!isAndroid) return; // mobile only, per product request
+
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallEvent(e);
+      setInstallPlatform("android");
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  // Show the install banner once the user has reached the main app (mirrors
+  // the push-notification prompt's gating), and only if not dismissed before.
+  useEffect(() => {
+    if (!profile || locked || !userId || room) return;
+    if (!installPlatform) return;
+    if (installPlatform === "android" && !installEvent) return;
+    if (localStorage.getItem(INSTALL_PROMPTED_KEY)) return;
+    setShowInstallPrompt(true);
+    setShowPushPrompt(false); // authoritative: don't let both banners show at once
+  }, [profile, locked, userId, room, installPlatform, installEvent]);
+
+  const handleInstallClick = async () => {
+    localStorage.setItem(INSTALL_PROMPTED_KEY, "1");
+    setShowInstallPrompt(false);
+    if (installPlatform === "android" && installEvent) {
+      try {
+        installEvent.prompt();
+        await installEvent.userChoice;
+      } catch (err) {
+        console.error("Install prompt error:", err?.message);
+      }
+      setInstallEvent(null);
+    }
+  };
+
+  const handleDismissInstall = () => {
+    localStorage.setItem(INSTALL_PROMPTED_KEY, "1");
+    setShowInstallPrompt(false);
+  };
 
   const handleEnablePush = async () => {
     localStorage.setItem(PUSH_PROMPTED_KEY, "1");
@@ -3815,6 +3933,10 @@ export default function NuanyuApp() {
               onNavigateToProfile={navigateToActorProfile} />}
           </div>
           <TabBar lang={lang} tab={tab} setTab={setTab} notifCount={notifCount} />
+          {showInstallPrompt && (
+            <InstallPrompt lang={lang} platform={installPlatform}
+              onInstall={handleInstallClick} onDismiss={handleDismissInstall} />
+          )}
           {showPushPrompt && (
             <PushPrompt lang={lang} onEnable={handleEnablePush} onDismiss={handleDismissPush} />
           )}
