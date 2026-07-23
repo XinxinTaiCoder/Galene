@@ -3557,6 +3557,50 @@ const GUIDELINES = {
   },
 };
 
+// ── Error boundary ──────────────────────────────────────────
+// Without this, any uncaught render error anywhere in the tree unmounts the
+// whole app to a blank screen with no way to recover or diagnose — this
+// catches it, shows the actual error message on screen (so it can be
+// screenshotted and reported), and offers a reload button.
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error("App crashed:", error?.message, error?.stack, info?.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      const isZh = this.props.lang === "zh";
+      return (
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", padding: 32, textAlign: "center", gap: 14,
+          background: `radial-gradient(120% 60% at 50% 0%, ${C.peach} 0%, ${C.bg} 50%)` }}>
+          <div style={{ fontSize: 44 }}>🌿</div>
+          <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 17, color: C.plum, fontWeight: 700 }}>
+            {isZh ? "出了点小问题" : "Something went wrong"}
+          </div>
+          <button onClick={() => window.location.reload()}
+            style={{ padding: "12px 28px", borderRadius: 14, border: "none",
+              background: C.terracotta, color: "#fff", fontSize: 14.5, cursor: "pointer",
+              fontFamily: "'Noto Serif SC',serif" }}>
+            {isZh ? "重新加载" : "Reload"}
+          </button>
+          <div style={{ marginTop: 6, fontSize: 11.5, color: C.plumSoft, maxWidth: 320,
+            wordBreak: "break-word", lineHeight: 1.6 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Root ────────────────────────────────────────────────────
 export default function NuanyuApp() {
   const [langState, setLangState] = useState("en");
@@ -3902,6 +3946,7 @@ export default function NuanyuApp() {
   }
 
   return shell(
+    <ErrorBoundary lang={lang}>
     <>
       {!session ? (
         authView === "signup" ? (
@@ -3978,5 +4023,6 @@ export default function NuanyuApp() {
         <CrisisModal lang={lang} onClose={() => setShowCrisisModal(false)} />
       )}
     </>
+    </ErrorBoundary>
   );
 }
