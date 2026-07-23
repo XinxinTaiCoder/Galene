@@ -3741,14 +3741,23 @@ export default function NuanyuApp() {
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      setSession(newSession);
       if (newSession?.user) {
+        setSession(newSession);
         setUserId(newSession.user.id);
         if (event === "SIGNED_IN") {
           registerPushNotifications(newSession.user.id);
           bootstrapProfile(newSession.user.id);
         }
-      } else {
+        return;
+      }
+      // Only a real, explicit sign-out should boot the user back to the
+      // welcome screen. Other events can fire with a momentarily-null
+      // session (e.g. a failed background token-refresh attempt — standalone
+      // PWAs get backgrounded/foregrounded far more aggressively than a
+      // regular browser tab, especially on iOS) and shouldn't wipe an
+      // active session out from under the user mid-interaction.
+      if (event === "SIGNED_OUT") {
+        setSession(null);
         setUserId(null);
         setProfile(null);
         setAuthView("welcome");
