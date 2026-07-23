@@ -3702,22 +3702,28 @@ export default function NuanyuApp() {
           .eq("id", uid)
           .single();
 
-        // PGRST116 = "no rows" from .single() — expected for a brand-new user.
-        if (error && error.code !== "PGRST116") {
-          console.error("Fetch profile error:", error.message, error.code, error.details, error.hint);
+        if (error) {
+          if (error.code === "PGRST116") {
+            // "No rows" — genuinely a brand-new user with no profile yet.
+            setProfile(null);
+          } else {
+            // Transient error (network blip, or a JWT-propagation race right
+            // after a token refresh — Supabase can re-fire SIGNED_IN just from
+            // the app regaining focus/foreground, which happens far more
+            // often for an installed PWA than a regular browser tab). Don't
+            // wipe out a profile that's already loaded and correct.
+            console.error("Fetch profile error:", error.message, error.code, error.details, error.hint);
+          }
+          return;
         }
 
-        if (profileData) {
-          setProfile({
-            avatar: profileData.avatar,
-            nickname: profileData.nickname || "",
-            interests: profileData.interests || [],
-            strengths: profileData.strengths || [],
-            banned: profileData.banned || false,
-          });
-        } else {
-          setProfile(null);
-        }
+        setProfile(profileData ? {
+          avatar: profileData.avatar,
+          nickname: profileData.nickname || "",
+          interests: profileData.interests || [],
+          strengths: profileData.strengths || [],
+          banned: profileData.banned || false,
+        } : null);
       } catch (err) {
         console.error("Fetch profile exception:", err?.message, err);
       }
