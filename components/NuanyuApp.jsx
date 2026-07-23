@@ -2063,6 +2063,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
   const [bannedAlert, setBannedAlert] = useState(false);
   const [txSheet, setTxSheet] = useState(null);
   const [goneToast, setGoneToast] = useState(false);
+  const [profileDebug, setProfileDebug] = useState(null); // TEMP diagnostic — remove once root cause found
 
   const handleTranslate = useCallback(async (text) => {
     setTxSheet({ text, translated: null, loading: true });
@@ -2076,16 +2077,25 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
   }, [lang]);
 
   const fetchProfile = async (authorId) => {
+    const startedAt = Date.now();
+    setProfileDebug({ status: "requesting", authorId, userId });
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from("profiles")
         .select("id, avatar, nickname, interests, strengths")
         .eq("id", authorId)
         .single();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("TIMEOUT — request never completed in 8s"), { code: "CLIENT_TIMEOUT" })), 8000)
+      );
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
       if (error) throw error;
       setViewingProfile(data);
+      setProfileDebug({ status: "success", authorId, elapsedMs: Date.now() - startedAt });
     } catch (err) {
       console.error("Profile fetch error:", err?.message, err?.code, err?.details, err?.hint, err);
+      setProfileDebug({ status: "error", authorId, elapsedMs: Date.now() - startedAt,
+        message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     }
   };
 
@@ -2301,6 +2311,22 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
 
   return (
     <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
+      {profileDebug && (
+        // TEMP diagnostic banner — remove once the profile-click freeze is root-caused.
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+          background: profileDebug.status === "error" ? "#ffd7d7"
+            : profileDebug.status === "success" ? "#d7ffd9" : "#fff3b0",
+          color: "#111", fontSize: 11.5, lineHeight: 1.5, padding: "8px 10px",
+          fontFamily: "monospace", wordBreak: "break-word", borderBottom: "2px solid #333",
+          maxHeight: "40vh", overflowY: "auto" }}>
+          <button onClick={() => setProfileDebug(null)}
+            style={{ float: "right", border: "1px solid #333", background: "#fff",
+              borderRadius: 4, fontSize: 11, padding: "1px 6px", cursor: "pointer" }}>
+            ✕
+          </button>
+          [DEBUG] {JSON.stringify(profileDebug)}
+        </div>
+      )}
       <div style={{ padding: "18px 16px 14px" }}>
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 24, fontWeight: 700, color: C.plum }}>{t.feedTitle}</div>
         <div style={{ color: C.plumSoft, fontSize: 12.5, marginTop: 2 }}>{t.feedSub}</div>
@@ -2352,7 +2378,13 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
             onReport={() => report(p.id)}
             reported={reportedIds.has(p.id)}
             timeAgo={timeAgo}
-            onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
+            onProfileClick={() => {
+              // TEMP diagnostic — confirms the click handler itself fires,
+              // even for own posts (which normally no-op silently).
+              setProfileDebug({ status: "clicked", postAuthorId: p.author_id, userId,
+                willFetch: p.author_id !== userId });
+              if (p.author_id !== userId) fetchProfile(p.author_id);
+            }}
             userId={userId}
             onDelete={p.author_id === userId ? () => deletePost(p.id) : undefined}
             onTranslate={handleTranslate}
