@@ -588,7 +588,7 @@ function PinSetupModal({ lang, onDone, onClose }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.55)",
       display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }}>
       <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", padding: "28px 24px 40px",
         width: "100%", boxShadow: "0 -8px 32px rgba(74,47,61,.2)" }}>
@@ -887,7 +887,7 @@ function SignOutModal({ lang, onClose, onConfirm }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 24, zIndex: 300 }}>
       <div style={{ background: C.card, borderRadius: 22, padding: 24, width: "100%",
@@ -1145,7 +1145,7 @@ function Reaction({ icon: Icon, label, count, active, onClick }) {
 function CrisisModal({ lang, onClose }) {
   const isZh = lang === "zh";
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.5)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.5)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 24, zIndex: 100 }}>
       <div style={{ background: C.card, borderRadius: 22, padding: 24,
@@ -1205,7 +1205,7 @@ function DeleteAccountModal({ lang, userId, onClose, onDeleted }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 24, zIndex: 300 }}>
       <div style={{ background: C.card, borderRadius: 22, padding: 24, width: "100%",
@@ -1312,7 +1312,7 @@ function InstallPrompt({ lang, platform, onInstall, onDismiss }) {
 function AbuseModal({ lang, onClose }) {
   const isZh = lang === "zh";
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.5)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.5)",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 24, zIndex: 100 }}>
       <div style={{ background: C.card, borderRadius: 22, padding: 24,
@@ -1343,7 +1343,7 @@ function AbuseModal({ lang, onClose }) {
 
 function TranslationSheet({ original, translated, loading, lang, onClose }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.4)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.4)",
       display: "flex", alignItems: "flex-end", zIndex: 300 }} onClick={onClose}>
       <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", width: "100%",
         padding: "20px 20px 36px", boxShadow: "0 -8px 32px rgba(74,47,61,.2)" }}
@@ -1379,7 +1379,7 @@ function ProfileCard({ profile, lang, onClose, onBlock, onReport, onHug, isHugge
   const interests = INTERESTS.filter((i) => (profile.interests || []).includes(i.id));
   const strengths = STRENGTHS.filter((s) => (profile.strengths || []).includes(s.id));
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.45)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.45)",
       display: "flex", alignItems: "flex-end", zIndex: 150 }}>
       <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", width: "100%",
         maxHeight: "72%", overflowY: "auto", padding: "0 0 36px",
@@ -1500,7 +1500,7 @@ function ReportUserModal({ lang, targetId, reporterId, onClose }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(74,47,61,.55)",
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(74,47,61,.55)",
       display: "flex", alignItems: "flex-end", zIndex: 200 }}>
       <div style={{ background: C.bg, borderRadius: "24px 24px 0 0", width: "100%",
         maxHeight: "80%", overflowY: "auto", padding: "0 0 40px",
@@ -1592,7 +1592,7 @@ function GuardSettings({ lang, userId, onClose }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.bg, zIndex: 200,
       display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
         borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
@@ -2063,7 +2063,6 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
   const [bannedAlert, setBannedAlert] = useState(false);
   const [txSheet, setTxSheet] = useState(null);
   const [goneToast, setGoneToast] = useState(false);
-  const [profileDebug, setProfileDebug] = useState(null); // TEMP diagnostic — remove once root cause found
 
   const handleTranslate = useCallback(async (text) => {
     setTxSheet({ text, translated: null, loading: true });
@@ -2077,25 +2076,16 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
   }, [lang]);
 
   const fetchProfile = async (authorId) => {
-    const startedAt = Date.now();
-    setProfileDebug({ status: "requesting", authorId, userId });
     try {
-      const queryPromise = supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id, avatar, nickname, interests, strengths")
         .eq("id", authorId)
         .single();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(Object.assign(new Error("TIMEOUT — request never completed in 8s"), { code: "CLIENT_TIMEOUT" })), 8000)
-      );
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
       if (error) throw error;
       setViewingProfile(data);
-      setProfileDebug({ status: "success", authorId, elapsedMs: Date.now() - startedAt });
     } catch (err) {
       console.error("Profile fetch error:", err?.message, err?.code, err?.details, err?.hint, err);
-      setProfileDebug({ status: "error", authorId, elapsedMs: Date.now() - startedAt,
-        message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     }
   };
 
@@ -2311,22 +2301,6 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
 
   return (
     <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom, 0px))" }}>
-      {profileDebug && (
-        // TEMP diagnostic banner — remove once the profile-click freeze is root-caused.
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
-          background: profileDebug.status === "error" ? "#ffd7d7"
-            : profileDebug.status === "success" ? "#d7ffd9" : "#fff3b0",
-          color: "#111", fontSize: 11.5, lineHeight: 1.5, padding: "8px 10px",
-          fontFamily: "monospace", wordBreak: "break-word", borderBottom: "2px solid #333",
-          maxHeight: "40vh", overflowY: "auto" }}>
-          <button onClick={() => setProfileDebug(null)}
-            style={{ float: "right", border: "1px solid #333", background: "#fff",
-              borderRadius: 4, fontSize: 11, padding: "1px 6px", cursor: "pointer" }}>
-            ✕
-          </button>
-          [DEBUG] {JSON.stringify(profileDebug)}
-        </div>
-      )}
       <div style={{ padding: "18px 16px 14px" }}>
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 24, fontWeight: 700, color: C.plum }}>{t.feedTitle}</div>
         <div style={{ color: C.plumSoft, fontSize: 12.5, marginTop: 2 }}>{t.feedSub}</div>
@@ -2378,13 +2352,7 @@ function Feed({ lang, userId, profile, onCrisisDetected, onAbuseDetected, highli
             onReport={() => report(p.id)}
             reported={reportedIds.has(p.id)}
             timeAgo={timeAgo}
-            onProfileClick={() => {
-              // TEMP diagnostic — confirms the click handler itself fires,
-              // even for own posts (which normally no-op silently).
-              setProfileDebug({ status: "clicked", postAuthorId: p.author_id, userId,
-                willFetch: p.author_id !== userId });
-              if (p.author_id !== userId) fetchProfile(p.author_id);
-            }}
+            onProfileClick={p.author_id !== userId ? () => fetchProfile(p.author_id) : undefined}
             userId={userId}
             onDelete={p.author_id === userId ? () => deletePost(p.id) : undefined}
             onTranslate={handleTranslate}
@@ -2975,7 +2943,7 @@ function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.bg, zIndex: 200,
       display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
         borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
@@ -3357,7 +3325,7 @@ function NotificationsPage({ lang, userId, onClose, onNavigateToFeed, onNavigate
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: C.bg, zIndex: 200,
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.bg, zIndex: 200,
       display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: "14px 16px",
         borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
@@ -3462,7 +3430,7 @@ function HugSurpriseModal({ lang, hugs, onClose, onViewProfile }) {
         @keyframes slideOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-10px) scale(0.92)}}
       `}</style>
       <div onClick={closeAll}
-        style={{ position: "absolute", inset: 0, zIndex: 500,
+        style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", zIndex: 500,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           background: `radial-gradient(ellipse at 50% 40%, ${C.peach} 0%, rgba(251,243,236,0.97) 65%)`,
           animation: modalPhase === "in" ? "hugFadeIn 0.42s ease forwards" : "hugFadeOut 0.48s ease forwards",
