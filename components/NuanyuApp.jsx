@@ -3067,7 +3067,7 @@ function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount
         let postHugCount = 0;
         if (postIds.length > 0) {
           const { count } = await supabase
-            .from("hugs").select("id", { count: "exact", head: true })
+            .from("hugs").select("post_id", { count: "exact", head: true })
             .in("post_id", postIds);
           postHugCount = count || 0;
         }
