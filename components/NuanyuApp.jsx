@@ -803,8 +803,10 @@ function LoginForm({ lang, setLang, onSwitchToSignUp }) {
       } else {
         fetch("/api/notify-login", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: trimmedEmail, userId: signInData?.user?.id }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${signInData?.session?.access_token}`,
+          },
         }).catch(() => {});
       }
       // Success handled by the App-level onAuthStateChange listener.

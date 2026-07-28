@@ -1,8 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const MISS_GALENE_ID = '00000000-0000-0000-0000-000000000001'
+const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET')
 
 Deno.serve(async (req) => {
+  if (!WEBHOOK_SECRET || req.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
+    return new Response('unauthorized', { status: 401 })
+  }
   try {
     const payload = await req.json()
     const post = payload.record

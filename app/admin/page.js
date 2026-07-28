@@ -1,8 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-
-const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "";
+import { useState } from "react";
 
 const S = {
   wrap: { minHeight: "100vh", background: "#FBF3EC", padding: "32px 24px",
@@ -42,91 +39,48 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ text: "", ok: true });
 
-  const login = () => {
-    if (pw === ADMIN_PW && ADMIN_PW !== "") {
-      setAuthed(true); setPwError(false);
-    } else {
-      setPwError(true);
+  // All reads/writes go through /api/admin (server-side, service role key).
+  // The password is verified server-side on every call — nothing admin-only
+  // is ever trusted to the browser.
+  const callAdmin = async (action, payload = {}) => {
+    const res = await fetch("/api/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pw, action, ...payload }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Request failed (${res.status})`);
     }
+    return res.json();
   };
 
-  const enrichReports = useCallback(async (rows) => {
-    const userTargetIds = [...new Set(rows.filter((r) => r.target_type === "user").map((r) => r.target_id))];
-    const postIds = [...new Set(rows.filter((r) => r.target_type === "post").map((r) => r.target_id))];
-    const msgIds = [...new Set(rows.filter((r) => r.target_type === "message").map((r) => r.target_id))];
-    const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
-
-    const allProfileIds = [...new Set([...userTargetIds, ...reporterIds])];
-    if (allProfileIds.length > 0) {
-      const { data: pData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", allProfileIds);
-      setProfiles((prev) => {
-        const map = { ...prev };
-        (pData || []).forEach((p) => { map[p.id] = p; });
-        return map;
-      });
+  const login = async () => {
+    if (!pw) { setPwError(true); return; }
+    setLoading(true);
+    try {
+      const data = await callAdmin("list");
+      setReports(data.open || []);
+      setReviewedReports(data.reviewed || []);
+      setProfiles(data.profiles || {});
+      setContents(data.contents || {});
+      setAuthorIds(data.authorIds || {});
+      setAuthed(true);
+      setPwError(false);
+    } catch (err) {
+      console.error("Admin login error:", err?.message);
+      setPwError(true);
+    } finally {
+      setLoading(false);
     }
-    if (postIds.length > 0) {
-      const { data: postData } = await supabase.from("posts").select("id, body, author_id").in("id", postIds);
-      setContents((prev) => { const m = { ...prev }; (postData || []).forEach((p) => { m[p.id] = p.body; }); return m; });
-      setAuthorIds((prev) => { const m = { ...prev }; (postData || []).forEach((p) => { m[p.id] = p.author_id; }); return m; });
-      // Also fetch post authors' profiles
-      const pAuthors = [...new Set((postData || []).map((p) => p.author_id).filter(Boolean))];
-      if (pAuthors.length > 0) {
-        const { data: apData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", pAuthors);
-        setProfiles((prev) => { const m = { ...prev }; (apData || []).forEach((p) => { m[p.id] = p; }); return m; });
-      }
-    }
-    if (msgIds.length > 0) {
-      const { data: msgData } = await supabase.from("messages").select("id, body, author_id").in("id", msgIds);
-      setContents((prev) => { const m = { ...prev }; (msgData || []).forEach((msg) => { m[msg.id] = msg.body; }); return m; });
-      setAuthorIds((prev) => { const m = { ...prev }; (msgData || []).forEach((msg) => { m[msg.id] = msg.author_id; }); return m; });
-      const mAuthors = [...new Set((msgData || []).map((m) => m.author_id).filter(Boolean))];
-      if (mAuthors.length > 0) {
-        const { data: maData } = await supabase.from("profiles").select("id, nickname, avatar, banned").in("id", mAuthors);
-        setProfiles((prev) => { const m = { ...prev }; (maData || []).forEach((p) => { m[p.id] = p; }); return m; });
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!authed) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const { data: open, error: e1 } = await supabase
-          .from("reports").select("*").eq("status", "open")
-          .order("created_at", { ascending: false });
-        if (e1) throw e1;
-        const { data: reviewed } = await supabase
-          .from("reports").select("*").eq("status", "reviewed")
-          .order("created_at", { ascending: false }).limit(50);
-        const openRows = open || [];
-        const reviewedRows = reviewed || [];
-        setReports(openRows);
-        setReviewedReports(reviewedRows);
-        await enrichReports([...openRows, ...reviewedRows]);
-      } catch (err) {
-        console.error("Admin load error:", err?.message, err?.code, err?.details, err?.hint, err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [authed, enrichReports]);
+  };
 
   const flash = (text, ok = true) => { setStatusMsg({ text, ok }); setTimeout(() => setStatusMsg({ text: "", ok: true }), 3000); };
   const removeOpen = (reportId) => setReports((prev) => prev.filter((r) => r.id !== reportId));
 
-  const markReviewed = async (reportId) => {
-    const { error } = await supabase.from("reports").update({ status: "reviewed" }).eq("id", reportId);
-    if (error) throw error;
-  };
-
   const banUser = async (targetId, reportId) => {
     try {
-      const { error } = await supabase.from("profiles").update({ banned: true }).eq("id", targetId);
-      if (error) throw error;
-      if (reportId) await markReviewed(reportId);
+      await callAdmin("ban", { targetId, reportId });
       setProfiles((prev) => ({ ...prev, [targetId]: { ...prev[targetId], banned: true } }));
       if (reportId) removeOpen(reportId);
       flash("✅ 用户已封禁");
@@ -137,8 +91,7 @@ export default function AdminPage() {
 
   const unbanUser = async (targetId) => {
     try {
-      const { error } = await supabase.from("profiles").update({ banned: false }).eq("id", targetId);
-      if (error) throw error;
+      await callAdmin("unban", { targetId });
       setProfiles((prev) => ({ ...prev, [targetId]: { ...prev[targetId], banned: false } }));
       flash("✅ 已解除封禁");
     } catch (err) {
@@ -148,10 +101,7 @@ export default function AdminPage() {
 
   const hidePost = async (targetId, reportId, alsobanAuthor) => {
     try {
-      const { error } = await supabase.from("posts").update({ hidden: true }).eq("id", targetId);
-      if (error) throw error;
-      if (alsobanAuthor && authorIds[targetId]) await supabase.from("profiles").update({ banned: true }).eq("id", authorIds[targetId]);
-      await markReviewed(reportId);
+      await callAdmin("hidePost", { targetId, reportId, alsoBanAuthor: alsobanAuthor, authorId: authorIds[targetId] });
       removeOpen(reportId);
       flash(alsobanAuthor ? "✅ 帖子已隐藏，作者已封禁" : "✅ 帖子已隐藏");
     } catch (err) {
@@ -161,10 +111,7 @@ export default function AdminPage() {
 
   const hideMessage = async (targetId, reportId, alsobanAuthor) => {
     try {
-      const { error } = await supabase.from("messages").update({ hidden: true }).eq("id", targetId);
-      if (error) throw error;
-      if (alsobanAuthor && authorIds[targetId]) await supabase.from("profiles").update({ banned: true }).eq("id", authorIds[targetId]);
-      await markReviewed(reportId);
+      await callAdmin("hideMessage", { targetId, reportId, alsoBanAuthor: alsobanAuthor, authorId: authorIds[targetId] });
       removeOpen(reportId);
       flash(alsobanAuthor ? "✅ 消息已隐藏，作者已封禁" : "✅ 消息已隐藏");
     } catch (err) {
@@ -174,7 +121,7 @@ export default function AdminPage() {
 
   const ignoreReport = async (reportId) => {
     try {
-      await markReviewed(reportId);
+      await callAdmin("ignore", { reportId });
       removeOpen(reportId);
       flash("已忽略该举报");
     } catch (err) {

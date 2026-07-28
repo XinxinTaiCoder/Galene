@@ -32,7 +32,12 @@ async function sendEmail(subject: string, html: string) {
   }
 }
 
+const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET')
+
 Deno.serve(async (req) => {
+  if (!WEBHOOK_SECRET || req.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
+    return new Response('unauthorized', { status: 401 })
+  }
   try {
     const payload = await req.json()
     const table = payload.table
