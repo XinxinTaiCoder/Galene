@@ -794,12 +794,18 @@ function LoginForm({ lang, setLang, onSwitchToSignUp }) {
     if (!trimmedEmail || !password) { setError(t.errorInvalidCredentials); return; }
     setSubmitting(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail, password,
       });
       if (signInError) {
         console.error("Sign in error:", signInError.message, signInError.status, signInError);
         setError(t.errorInvalidCredentials);
+      } else {
+        fetch("/api/notify-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmedEmail, userId: signInData?.user?.id }),
+        }).catch(() => {});
       }
       // Success handled by the App-level onAuthStateChange listener.
     } catch (err) {
@@ -1797,7 +1803,8 @@ function ComposeBox({ lang, profile, text, onTextChange, emoji, onEmojiChange, t
 }
 
 // ── Comments ──────────────────────────────────────────────────
-function CommentItem({ comment, replies, lang, onReply, onDelete, userId, depth }) {
+function CommentItem({ comment, allComments, lang, onReply, onDelete, userId, depth }) {
+  const replies = allComments.filter((c) => c.parent_id === comment.id);
   const av = comment.profiles?.avatar || "🌿";
   const name = comment.profiles?.nickname || (lang === "zh" ? "匿名" : "anonymous");
   const isMissGalene = comment.author_id === MISS_GALENE_ID;
@@ -1834,7 +1841,7 @@ function CommentItem({ comment, replies, lang, onReply, onDelete, userId, depth 
         </div>
       </div>
       {replies.map((r) => (
-        <CommentItem key={r.id} comment={r} replies={[]} lang={lang} onReply={onReply}
+        <CommentItem key={r.id} comment={r} allComments={allComments} lang={lang} onReply={onReply}
           onDelete={onDelete} userId={userId} depth={depth + 1} />
       ))}
     </div>
@@ -1904,7 +1911,6 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpande
   };
 
   const topLevel = comments.filter((c) => !c.parent_id);
-  const repliesFor = (parentId) => comments.filter((c) => c.parent_id === parentId);
   const PREVIEW = 2;
   const hasMore = !expanded && topLevel.length > PREVIEW;
   const visibleTop = hasMore ? topLevel.slice(-PREVIEW) : topLevel;
@@ -1931,7 +1937,7 @@ function CommentsSection({ postId, userId, lang, t, postAuthorId, defaultExpande
             </button>
           )}
           {visibleTop.map((c) => (
-            <CommentItem key={c.id} comment={c} replies={repliesFor(c.id)} lang={lang}
+            <CommentItem key={c.id} comment={c} allComments={comments} lang={lang}
               onReply={(c) => { setReplyTo(c); setTimeout(() => inputRef.current?.focus(), 0); }}
               onDelete={deleteComment} userId={userId} depth={0} />
           ))}
