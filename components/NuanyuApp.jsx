@@ -40,6 +40,19 @@ const maskEmail = (email) => {
   return `${visible}***@${domain}`;
 };
 
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const isValidEmailFormat = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const INTERNAL_EMAIL_DOMAIN = "galene.internal";
+
+// Suffix for the auto-generated internal email of username-only sign-ups —
+// never shown to the user, just needs to be unique per account.
+function randomAlnum(len) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
 // ── i18n ────────────────────────────────────────────────────
 const STR = {
   zh: {
@@ -116,21 +129,43 @@ const STR = {
     logInBtn: "登录", dontHaveAccount: "还没有账号？注册",
     signUpTitle: "创建账号", logInTitle: "登录",
     emailLabel: "邮箱地址", emailPlaceholder: "你的邮箱",
+    emailOptionalLabel: "邮箱地址（选填）",
+    emailOptionalHint: "选填。忘记密码时需要用到。邮箱不会在 App 内对任何人显示。",
+    usernameLabel: "用户名", usernamePlaceholder: "3-20 位字母、数字或下划线",
+    usernameOrEmailLabel: "用户名或邮箱", usernameOrEmailPlaceholder: "你的用户名或邮箱",
+    checkingUsername: "检查中…",
+    usernameAvailable: "用户名可用",
     passwordLabel: "密码（至少 8 位）", passwordPlaceholder: "输入密码",
     confirmPasswordLabel: "确认密码", confirmPasswordPlaceholder: "再次输入密码",
     phoneComingSoon: "手机号注册即将推出",
     continueBtn: "继续",
     forgotPassword: "忘记密码？",
     resetSent: "重置邮件已发送，请查收",
-    resetEmailNeeded: "请先输入邮箱地址",
+    resetEmailNeeded: "请先输入用户名或邮箱",
+    resetEmailPromptLabel: "请输入你绑定的邮箱以接收重置链接",
+    resetEmailPromptSubmit: "发送重置邮件",
     errorEmailInUse: "该邮箱已注册，请直接登录",
     errorPasswordMismatch: "两次密码不一致",
     errorInvalidEmail: "邮箱格式看起来不太对，请检查一下",
     errorPasswordTooShort: "密码至少需要 8 位",
-    errorInvalidCredentials: "邮箱或密码不正确，请再试一次",
+    errorInvalidCredentials: "账号或密码不正确，请再试一次",
     errorGeneric: "出了点小问题，请稍后再试",
+    errorUsernameRequired: "请输入用户名",
+    errorUsernameInvalid: "用户名需 3-20 位，只能包含字母、数字和下划线",
+    errorUsernameTaken: "用户名已被使用",
     confirmEmailPending: "注册成功，但邮箱验证尚未关闭 —— 请联系管理员在 Supabase 关闭 Confirm email",
     accountLabel: "账号：",
+    forgotNoEmailTitle: "还没有绑定邮箱",
+    forgotNoEmailBody: "你注册时未填邮箱，无法发送重置链接。建议去「我的」→「绑定邮箱」提前绑定，以防忘记密码。",
+    accountSecurity: "账号安全", accountSecuritySub: "管理你的绑定邮箱",
+    bindEmailTitle: "绑定邮箱",
+    bindEmailBody: "绑定邮箱后，忘记密码时可以用它找回账号。",
+    bindEmailButton: "绑定邮箱",
+    bindEmailPlaceholder: "输入你的邮箱",
+    bindEmailSuccess: "邮箱绑定成功，之后可以用邮箱找回密码。",
+    bindEmailBoundLabel: "已绑定邮箱",
+    bindEmailChangeHint: "如需修改邮箱请联系 galene_support@protonmail.com",
+    meUsernamePrefix: "账号：@",
     signOut: "退出登录", signOutSub: "退出后需要重新登录",
     signOutConfirmTitle: "确认退出登录？",
     signOutConfirmBody: "退出后需要重新登录，确认退出吗？",
@@ -211,21 +246,43 @@ const STR = {
     logInBtn: "Log in", dontHaveAccount: "Don't have an account? Sign up",
     signUpTitle: "Create your account", logInTitle: "Log in",
     emailLabel: "Email address", emailPlaceholder: "Your email",
+    emailOptionalLabel: "Email address (optional)",
+    emailOptionalHint: "Optional, but needed if you forget your password. Your email is never visible to anyone inside Galene.",
+    usernameLabel: "Username", usernamePlaceholder: "3-20 letters, numbers, or underscores",
+    usernameOrEmailLabel: "Username or email", usernameOrEmailPlaceholder: "Your username or email",
+    checkingUsername: "Checking…",
+    usernameAvailable: "Username available",
     passwordLabel: "Password (at least 8 characters)", passwordPlaceholder: "Enter password",
     confirmPasswordLabel: "Confirm password", confirmPasswordPlaceholder: "Re-enter password",
     phoneComingSoon: "Phone number sign-up coming soon",
     continueBtn: "Continue",
     forgotPassword: "Forgot password?",
     resetSent: "Reset email sent — please check your inbox",
-    resetEmailNeeded: "Please enter your email first",
+    resetEmailNeeded: "Please enter your username or email first",
+    resetEmailPromptLabel: "Enter the email you bound to receive a reset link",
+    resetEmailPromptSubmit: "Send reset email",
     errorEmailInUse: "This email is already registered — please log in instead",
     errorPasswordMismatch: "Passwords don't match",
     errorInvalidEmail: "That email doesn't look quite right — please check it",
     errorPasswordTooShort: "Password must be at least 8 characters",
-    errorInvalidCredentials: "Email or password is incorrect — please try again",
+    errorInvalidCredentials: "That username/email or password is incorrect — please try again",
     errorGeneric: "Something went wrong — please try again shortly",
+    errorUsernameRequired: "Please enter a username",
+    errorUsernameInvalid: "Username must be 3-20 characters — letters, numbers, and underscores only",
+    errorUsernameTaken: "That username is already taken",
     confirmEmailPending: "Account created, but email confirmation is still on — ask your admin to disable Confirm email in Supabase",
     accountLabel: "Account: ",
+    forgotNoEmailTitle: "No email bound yet",
+    forgotNoEmailBody: "You signed up without an email, so we can't send a reset link. Go to Profile → Bind Email to add one before you forget your password.",
+    accountSecurity: "Account Security", accountSecuritySub: "Manage your bound email",
+    bindEmailTitle: "Bind an email",
+    bindEmailBody: "Once bound, you can use this email to recover your account if you forget your password.",
+    bindEmailButton: "Bind email",
+    bindEmailPlaceholder: "Enter your email",
+    bindEmailSuccess: "Email bound successfully — you can now use it to recover your password.",
+    bindEmailBoundLabel: "Bound email",
+    bindEmailChangeHint: "To change your email, please contact galene_support@protonmail.com",
+    meUsernamePrefix: "@",
     signOut: "Log out", signOutSub: "You'll need to log in again",
     signOutConfirmTitle: "Log out?",
     signOutConfirmBody: "You'll need to log in again afterward. Are you sure?",
@@ -677,32 +734,86 @@ function AuthWelcome({ lang, setLang, onSignUp, onLogin }) {
   );
 }
 
-function SignUpForm({ lang, setLang, onSwitchToLogin }) {
+function SignUpForm({ lang, setLang, onSwitchToLogin, onSignedUp }) {
   const t = STR[lang];
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState("idle"); // idle | checking | available | taken | invalid
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const usernameCheckToken = useRef(0);
 
-  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  useEffect(() => {
+    const trimmed = username.trim();
+    if (!trimmed) { setUsernameStatus("idle"); return; }
+    if (!USERNAME_RE.test(trimmed)) { setUsernameStatus("invalid"); return; }
+    setUsernameStatus("checking");
+    const token = ++usernameCheckToken.current;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-username", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: trimmed }),
+        });
+        const json = await res.json();
+        if (usernameCheckToken.current !== token) return; // a newer keystroke superseded this check
+        setUsernameStatus(json?.available ? "available" : "taken");
+      } catch (err) {
+        console.error("check-username fetch error:", err?.message, err);
+        if (usernameCheckToken.current === token) setUsernameStatus("idle");
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [username]);
 
   const handleSubmit = async () => {
     setError("");
-    const trimmedEmail = email.trim();
-    if (!isValidEmail(trimmedEmail)) { setError(t.errorInvalidEmail); return; }
+    const trimmedUsername = username.trim();
+    const usernameLower = trimmedUsername.toLowerCase();
+    if (!trimmedUsername) { setError(t.errorUsernameRequired); return; }
+    if (!USERNAME_RE.test(trimmedUsername)) { setError(t.errorUsernameInvalid); return; }
     if (password.length < 8) { setError(t.errorPasswordTooShort); return; }
     if (password !== confirmPassword) { setError(t.errorPasswordMismatch); return; }
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !isValidEmailFormat(trimmedEmail)) { setError(t.errorInvalidEmail); return; }
 
     setSubmitting(true);
     try {
+      // Authoritative check right before creating the account — the
+      // real-time check above can go stale (another signup landing in
+      // between, or submitting before the debounce settles).
+      let checkJson = null;
+      try {
+        const checkRes = await fetch("/api/auth/check-username", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: trimmedUsername }),
+        });
+        checkJson = await checkRes.json();
+      } catch (err) {
+        console.error("check-username pre-submit fetch error:", err?.message, err);
+      }
+      if (!checkJson?.available) {
+        setError(t.errorUsernameTaken);
+        setUsernameStatus("taken");
+        return;
+      }
+
+      const hasRealEmail = !!trimmedEmail;
+      const signUpEmail = hasRealEmail
+        ? trimmedEmail
+        : `${usernameLower}_${randomAlnum(8)}@${INTERNAL_EMAIL_DOMAIN}`;
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: trimmedEmail, password,
+        email: signUpEmail, password,
       });
       if (signUpError) {
         console.error("Sign up error:", signUpError.message, signUpError.status, signUpError);
-        if (signUpError.message?.toLowerCase().includes("already registered") ||
-            signUpError.message?.toLowerCase().includes("already been registered")) {
+        if (hasRealEmail && (signUpError.message?.toLowerCase().includes("already registered") ||
+            signUpError.message?.toLowerCase().includes("already been registered"))) {
           setError(t.errorEmailInUse);
         } else {
           setError(t.errorGeneric);
@@ -710,10 +821,10 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
         return;
       }
       // With "Confirm email" disabled (the intended project setting), signing
-      // up with an already-registered email returns success with no error,
-      // but no session and an empty identities array.
+      // up with an already-registered real email returns success with no
+      // error, but no session and an empty identities array.
       if (!data?.session && (!data?.user?.identities || data.user.identities.length === 0)) {
-        setError(t.errorEmailInUse);
+        setError(hasRealEmail ? t.errorEmailInUse : t.errorGeneric);
         return;
       }
       // If the project still has "Confirm email" turned on, a genuinely new
@@ -723,6 +834,29 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
         setError(t.confirmEmailPending);
         return;
       }
+
+      try {
+        const { error: profileError } = await supabase.from("profiles").upsert({
+          id: data.user.id,
+          username: usernameLower,
+          has_real_email: hasRealEmail,
+        });
+        if (profileError) {
+          console.error("Profile username save error:", profileError.message, profileError.code, profileError.details, profileError.hint, profileError);
+          setError(t.errorGeneric);
+          return;
+        }
+      } catch (err) {
+        console.error("Profile username save exception:", err?.message, err);
+        setError(t.errorGeneric);
+        return;
+      }
+      // Report the username straight back to the root App instead of
+      // relying on it re-fetching the profiles row: the SIGNED_IN listener
+      // fires synchronously inside supabase.auth.signUp(), i.e. before this
+      // upsert has even run, so that fetch races the insert and reliably
+      // loses — it would otherwise see no username yet.
+      onSignedUp?.({ username: usernameLower, hasRealEmail });
       // Real success: the App-level onAuthStateChange listener picks up the
       // new session and moves us into onboarding automatically.
     } catch (err) {
@@ -732,6 +866,16 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
       setSubmitting(false);
     }
   };
+
+  const usernameStatusText = {
+    checking: t.checkingUsername,
+    taken: t.errorUsernameTaken,
+    invalid: t.errorUsernameInvalid,
+    available: t.usernameAvailable,
+  }[usernameStatus];
+  const usernameStatusColor = usernameStatus === "available" ? C.sage
+    : (usernameStatus === "taken" || usernameStatus === "invalid") ? C.terracotta
+    : C.plumSoft;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflowY: "auto",
@@ -743,8 +887,17 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 22, color: C.plum, fontWeight: 700,
           marginBottom: 24 }}>{t.signUpTitle}</div>
 
-        <AuthTextField label={t.emailLabel} type="email" value={email} autoComplete="email"
-          onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} />
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.usernameLabel}</div>
+          <input value={username} maxLength={20} autoComplete="username"
+            onChange={(e) => setUsername(e.target.value)} placeholder={t.usernamePlaceholder}
+            style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+              borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none",
+              background: C.card, color: C.plum }} />
+        </div>
+        <div style={{ fontSize: 12, color: usernameStatusColor, marginBottom: 16, minHeight: 16 }}>
+          {usernameStatusText || " "}
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.passwordLabel}</div>
@@ -752,10 +905,22 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
             placeholder={t.passwordPlaceholder} autoComplete="new-password" />
         </div>
 
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.confirmPasswordLabel}</div>
           <PasswordField value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder={t.confirmPasswordPlaceholder} autoComplete="new-password" />
+        </div>
+
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.emailOptionalLabel}</div>
+          <input value={email} type="email" autoComplete="email"
+            onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder}
+            style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+              borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none",
+              background: C.card, color: C.plum }} />
+        </div>
+        <div style={{ fontSize: 12, color: C.plumSoft, marginBottom: 12, lineHeight: 1.5 }}>
+          {t.emailOptionalHint}
         </div>
 
         <div style={{ fontSize: 12, color: C.plumSoft, marginBottom: 20 }}>{t.phoneComingSoon}</div>
@@ -781,22 +946,54 @@ function SignUpForm({ lang, setLang, onSwitchToLogin }) {
 
 function LoginForm({ lang, setLang, onSwitchToSignUp }) {
   const t = STR[lang];
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  // 'idle' | 'needEmail' — 'needEmail' means we've confirmed this username has
+  // a real bound email and are now asking for it to send the reset link.
+  const [forgotStage, setForgotStage] = useState("idle");
+  const [forgotEmail, setForgotEmail] = useState("");
+
+  const isEmailIdentifier = (v) => v.includes("@");
 
   const handleSubmit = async () => {
     setError(""); setNotice("");
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) { setError(t.errorInvalidCredentials); return; }
+    const trimmed = identifier.trim();
+    if (!trimmed || !password) { setError(t.errorInvalidCredentials); return; }
     setSubmitting(true);
     try {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail, password,
-      });
+      let signInData = null;
+      let signInError = null;
+      if (isEmailIdentifier(trimmed)) {
+        const res = await supabase.auth.signInWithPassword({ email: trimmed, password });
+        signInData = res.data;
+        signInError = res.error;
+      } else {
+        try {
+          const res = await fetch("/api/auth/login-by-username", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: trimmed, password }),
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok || !json?.session) {
+            signInError = new Error(json?.error || "Invalid credentials");
+          } else {
+            const setRes = await supabase.auth.setSession({
+              access_token: json.session.access_token,
+              refresh_token: json.session.refresh_token,
+            });
+            signInData = setRes.data;
+            signInError = setRes.error;
+          }
+        } catch (err) {
+          console.error("login-by-username fetch exception:", err?.message, err);
+          signInError = err;
+        }
+      }
       if (signInError) {
         console.error("Sign in error:", signInError.message, signInError.status, signInError);
         setError(t.errorInvalidCredentials);
@@ -818,21 +1015,52 @@ function LoginForm({ lang, setLang, onSwitchToSignUp }) {
     }
   };
 
-  const handleForgotPassword = async () => {
-    setError(""); setNotice("");
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) { setError(t.resetEmailNeeded); return; }
+  const sendResetToEmail = async (targetEmail) => {
     setResetting(true);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetEmail);
       if (resetError) {
         console.error("Reset password error:", resetError.message, resetError);
         setError(t.errorGeneric);
       } else {
         setNotice(t.resetSent);
+        setForgotStage("idle");
       }
     } catch (err) {
       console.error("Reset password exception:", err?.message, err);
+      setError(t.errorGeneric);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(""); setNotice("");
+    const trimmed = identifier.trim();
+    if (!trimmed) { setError(t.resetEmailNeeded); return; }
+
+    if (isEmailIdentifier(trimmed)) {
+      await sendResetToEmail(trimmed);
+      return;
+    }
+
+    // Username entered — look up (server-side) whether this account has a
+    // real bound email before deciding which guidance to show.
+    setResetting(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: trimmed }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.hasRealEmail) {
+        setForgotStage("needEmail");
+      } else {
+        setError(`${t.forgotNoEmailTitle} — ${t.forgotNoEmailBody}`);
+      }
+    } catch (err) {
+      console.error("forgot-password-lookup exception:", err?.message, err);
       setError(t.errorGeneric);
     } finally {
       setResetting(false);
@@ -849,8 +1077,9 @@ function LoginForm({ lang, setLang, onSwitchToSignUp }) {
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 22, color: C.plum, fontWeight: 700,
           marginBottom: 24 }}>{t.logInTitle}</div>
 
-        <AuthTextField label={t.emailLabel} type="email" value={email} autoComplete="email"
-          onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} />
+        <AuthTextField label={t.usernameOrEmailLabel} type="text" value={identifier} autoComplete="username"
+          onChange={(e) => { setIdentifier(e.target.value); setForgotStage("idle"); }}
+          placeholder={t.usernameOrEmailPlaceholder} />
 
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 8 }}>{t.passwordLabel}</div>
@@ -864,6 +1093,29 @@ function LoginForm({ lang, setLang, onSwitchToSignUp }) {
             marginBottom: 16, padding: 0 }}>
           {t.forgotPassword}
         </button>
+
+        {forgotStage === "needEmail" && (
+          <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, background: C.cardWarm,
+            border: `1px solid ${C.line}` }}>
+            <div style={{ fontSize: 12.5, color: C.plumSoft, marginBottom: 8 }}>{t.resetEmailPromptLabel}</div>
+            <input value={forgotEmail} type="email" autoComplete="email"
+              onChange={(e) => setForgotEmail(e.target.value)} placeholder={t.emailPlaceholder}
+              style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+                borderRadius: 12, padding: "10px 12px", fontSize: 14, outline: "none",
+                background: C.card, color: C.plum, marginBottom: 10 }} />
+            <button onClick={() => {
+                const trimmed = forgotEmail.trim();
+                if (!isValidEmailFormat(trimmed)) { setError(t.errorInvalidEmail); return; }
+                setError("");
+                sendResetToEmail(trimmed);
+              }} disabled={resetting}
+              style={{ width: "100%", padding: 11, borderRadius: 12, border: "none",
+                background: resetting ? C.terracottaSoft : C.terracotta, color: "#fff", fontSize: 13.5,
+                cursor: resetting ? "default" : "pointer" }}>
+              {t.resetEmailPromptSubmit}
+            </button>
+          </div>
+        )}
 
         {error && <div style={{ color: C.terracotta, fontSize: 13, marginBottom: 14 }}>{error}</div>}
         {notice && <div style={{ color: C.sage, fontSize: 13, marginBottom: 14 }}>{notice}</div>}
@@ -3031,7 +3283,108 @@ function EditProfileModal({ lang, profile, userId, onSave, onClose }) {
 }
 
 // ── Me ──────────────────────────────────────────────────────
-function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
+function AccountSecurityModal({ lang, userId, email, hasRealEmail, onAccountUpdate, onClose }) {
+  const t = STR[lang];
+  const [newEmail, setNewEmail] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [boundEmail, setBoundEmail] = useState(email || "");
+
+  const handleBind = async () => {
+    setError("");
+    const trimmed = newEmail.trim();
+    if (!isValidEmailFormat(trimmed)) { setError(t.errorInvalidEmail); return; }
+    setSubmitting(true);
+    try {
+      // Goes through a server route with the admin API rather than
+      // supabase.auth.updateUser() directly: this project's Auth settings
+      // validate the *current* email's domain (an MX-record-style check) on
+      // that path, and our auto-generated internal placeholder domain has no
+      // real MX record, so every such call would fail even though the new
+      // address is perfectly valid.
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/auth/bind-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        console.error("Bind email API error:", res.status, json?.error);
+        setError(res.status === 409 ? t.errorEmailInUse : t.errorGeneric);
+        return;
+      }
+      // The email was changed server-side via the admin API, so this
+      // client's cached session still has the old (internal) address —
+      // refresh it so the root App's session.user.email updates too and
+      // never has a stale chance of rendering the internal placeholder.
+      try {
+        await supabase.auth.refreshSession();
+      } catch (err) {
+        console.error("Bind email session refresh error:", err?.message, err);
+      }
+      setBoundEmail(trimmed);
+      setSuccess(true);
+      onAccountUpdate?.({ hasRealEmail: true });
+    } catch (err) {
+      console.error("Bind email exception:", err?.message, err);
+      setError(t.errorGeneric);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const showBound = hasRealEmail || success;
+
+  return (
+    <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto",
+      background: "rgba(74,47,61,.55)", display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, zIndex: 300 }}>
+      <div style={{ background: C.card, borderRadius: 22, padding: 24, width: "100%",
+        border: `1px solid ${C.terracottaSoft}`, boxShadow: "0 8px 32px rgba(74,47,61,.2)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontFamily: "'Noto Serif SC',serif", color: C.plum, fontWeight: 700 }}>
+            {t.accountSecurity}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.plumSoft, padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {showBound ? (
+          <>
+            <div style={{ fontSize: 12.5, color: C.plumSoft, marginBottom: 6 }}>{t.bindEmailBoundLabel}</div>
+            <div style={{ fontSize: 15, color: C.plum, marginBottom: 14 }}>{maskEmail(boundEmail)}</div>
+            <div style={{ fontSize: 12.5, color: C.plumSoft, lineHeight: 1.6 }}>{t.bindEmailChangeHint}</div>
+            {success && <div style={{ marginTop: 12, fontSize: 13, color: C.sage }}>{t.bindEmailSuccess}</div>}
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: C.plumSoft, marginBottom: 14, lineHeight: 1.6 }}>{t.bindEmailBody}</div>
+            <input value={newEmail} type="email" autoComplete="email"
+              onChange={(e) => setNewEmail(e.target.value)} placeholder={t.bindEmailPlaceholder}
+              style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${C.line}`,
+                borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none",
+                background: C.cardWarm, color: C.plum, marginBottom: 10 }} />
+            {error && <div style={{ color: C.terracotta, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+            <button onClick={handleBind} disabled={submitting}
+              style={{ width: "100%", padding: 13, borderRadius: 14, border: "none",
+                background: submitting ? C.terracottaSoft : C.terracotta, color: "#fff", fontSize: 14.5,
+                cursor: submitting ? "default" : "pointer" }}>
+              {submitting ? t.saving : t.bindEmailButton}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Me({ lang, setLang, profile, userId, email, username, hasRealEmail, onAccountUpdate, onProfileUpdate, notifCount, onNavigateToFeed, onNavigateToRoom, onNotifRead, onNavigateToPost, onNavigateToProfile }) {
   const t = STR[lang];
   const [pinExists, setPinExists] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
@@ -3040,6 +3393,7 @@ function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount
   const [showNotifs, setShowNotifs] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+  const [showAccountSecurity, setShowAccountSecurity] = useState(false);
   const [totalHugs, setTotalHugs] = useState(null);
 
   const handleSignOut = async () => {
@@ -3136,6 +3490,11 @@ function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount
         <div style={{ fontFamily: "'Noto Serif SC',serif", fontSize: 19, color: C.plum,
           fontWeight: 700 }}>{profile.nickname || t.meName}</div>
         <div style={{ fontSize: 12, color: C.plumSoft, marginTop: 4 }}>{t.meSub}</div>
+        {username && (
+          <div style={{ fontSize: 11, color: C.terracottaSoft, marginTop: 4 }}>
+            {t.meUsernamePrefix}{username}
+          </div>
+        )}
         {email && (
           <div style={{ fontSize: 11, color: C.plumSoft, marginTop: 4 }}>
             {t.accountLabel}{maskEmail(email)}
@@ -3177,6 +3536,8 @@ function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount
         <SettingRow icon={Lock} label={t.pinOn} sub={t.pinOnSub}
           onClick={() => setShowPinSetup(true)} />
       )}
+      <SettingRow icon={Shield} label={t.accountSecurity} sub={t.accountSecuritySub}
+        onClick={() => setShowAccountSecurity(true)} />
       <SettingRow icon={Shield} label={t.meGuard} sub={t.meGuardSub}
         onClick={() => setShowGuard(true)} />
       <SettingRow icon={PhoneCall} label={t.crisisResources} sub={t.crisisResourcesSub}
@@ -3216,6 +3577,11 @@ function Me({ lang, setLang, profile, userId, email, onProfileUpdate, notifCount
       )}
       {showGuard && (
         <GuardSettings lang={lang} userId={userId} onClose={() => setShowGuard(false)} />
+      )}
+      {showAccountSecurity && (
+        <AccountSecurityModal lang={lang} userId={userId} email={email} hasRealEmail={hasRealEmail}
+          onAccountUpdate={onAccountUpdate}
+          onClose={() => setShowAccountSecurity(false)} />
       )}
       {showDeleteAccount && (
         <DeleteAccountModal lang={lang} userId={userId}
@@ -3614,6 +3980,7 @@ export default function NuanyuApp() {
   const [langState, setLangState] = useState("en");
   const [locked, setLocked] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [account, setAccount] = useState({ username: "", hasRealEmail: false });
   const [tab, setTab] = useState("feed");
   const [room, setRoom] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -3769,13 +4136,24 @@ export default function NuanyuApp() {
           return;
         }
 
-        setProfile(profileData ? {
+        // Sign-up now writes the profiles row immediately (to persist
+        // username/has_real_email even if the user abandons onboarding), so
+        // a row existing no longer means onboarding is done. `nickname` is
+        // only ever written by onboarding completion (even an empty string,
+        // never left null), so its presence is the real "onboarding done"
+        // signal — `avatar` isn't, since the column has a DB default and
+        // gets auto-filled on that early insert.
+        const onboardingDone = profileData?.nickname !== null && profileData?.nickname !== undefined;
+        setProfile(profileData && onboardingDone ? {
           avatar: profileData.avatar,
           nickname: profileData.nickname || "",
           interests: profileData.interests || [],
           strengths: profileData.strengths || [],
           banned: profileData.banned || false,
         } : null);
+        if (profileData) {
+          setAccount({ username: profileData.username || "", hasRealEmail: !!profileData.has_real_email });
+        }
       } catch (err) {
         console.error("Fetch profile exception:", err?.message, err);
       }
@@ -3958,7 +4336,8 @@ export default function NuanyuApp() {
     <>
       {!session ? (
         authView === "signup" ? (
-          <SignUpForm lang={lang} setLang={setLang} onSwitchToLogin={() => setAuthView("login")} />
+          <SignUpForm lang={lang} setLang={setLang} onSwitchToLogin={() => setAuthView("login")}
+            onSignedUp={(a) => setAccount((prev) => ({ ...prev, ...a }))} />
         ) : authView === "login" ? (
           <LoginForm lang={lang} setLang={setLang} onSwitchToSignUp={() => setAuthView("signup")} />
         ) : (
@@ -3987,7 +4366,9 @@ export default function NuanyuApp() {
               onHighlightDone={() => { setFeedHighlightPostId(null); setFeedOpenCommentsFor(null); }} />}
             {tab === "rooms" && <Rooms lang={lang} onEnter={setRoom} />}
             {tab === "me" && <Me lang={lang} setLang={setLang} profile={profile} userId={userId}
-              email={session?.user?.email}
+              email={account.hasRealEmail ? session?.user?.email : null}
+              username={account.username} hasRealEmail={account.hasRealEmail}
+              onAccountUpdate={(a) => setAccount((prev) => ({ ...prev, ...a }))}
               onProfileUpdate={(p) => setProfile(p)}
               notifCount={notifCount}
               onNotifRead={() => setNotifCount((n) => Math.max(0, n - 1))}
